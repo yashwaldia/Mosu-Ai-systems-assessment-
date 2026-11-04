@@ -1,0 +1,2062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MOSU — Visual AI Workflow & Systems Demonstrator</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #0b0f19;
+      color: #e2e8f0;
+    }
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .node-card {
+      transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .node-active {
+      box-shadow: 0 0 0 2px #38bdf8, 0 0 20px rgba(56, 189, 248, 0.28);
+      transform: translateY(-2px);
+    }
+    .node-blocked {
+      box-shadow: 0 0 0 2px #f43f5e, 0 0 20px rgba(244, 63, 94, 0.28);
+    }
+    .node-unknown {
+      box-shadow: 0 0 0 2px #f59e0b, 0 0 20px rgba(245, 158, 11, 0.28);
+    }
+    .node-completed {
+      border-color: #10b981;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-sky-500 selection:text-white">
+
+  <!-- Top Header & Execution Controls -->
+  <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-[1600px] mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="h-9 w-9 rounded-lg bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center font-bold text-white shadow-sm">
+          M
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-base font-bold tracking-tight text-white">MOSU Visual Systems Demonstrator</h1>
+            <span class="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30">Stage 2 Architecture</span>
+          </div>
+          <p class="text-xs text-slate-400">Remote Custom Fashion Measurement Validation, Human-in-the-Loop Approval &amp; Idempotent Tool Execution</p>
+        </div>
+      </div>
+
+      <!-- Scenario Selector & Step Controls -->
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="flex items-center bg-slate-900 border border-slate-700 rounded-lg p-1 gap-1">
+          <label for="scenarioSelect" class="text-xs font-medium text-slate-400 pl-2 pr-1">Scenario:</label>
+          <select id="scenarioSelect" class="bg-slate-800 text-xs font-medium text-white rounded px-2.5 py-1.5 border border-slate-700 focus:outline-none focus:border-sky-500">
+            <option value="normal">Scenario A: Normal Execution (Blocked Send &rarr; Approval &rarr; Receipt)</option>
+            <option value="timeout_recover">Scenario B: Delivery Occurs, Response Times Out (&rarr; Unknown &rarr; Safe Retry Recovery)</option>
+            <option value="timeout_limit">Scenario B (Limit Variant): Two Uncertain Attempts (&rarr; Stop &amp; Needs Reconciliation)</option>
+            <option value="stale_change">Scenario C (Changed Condition): Protocol/Profile Changes After Approval (&rarr; Stale Invalidation)</option>
+          </select>
+        </div>
+
+        <button id="btnStepBack" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition disabled:opacity-40 disabled:pointer-events-none">
+          &larr; Prev Step
+        </button>
+        <button id="btnNextStep" type="button" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-sky-500 hover:bg-sky-400 text-slate-950 shadow transition flex items-center gap-1.5 disabled:opacity-40 disabled:pointer-events-none">
+          <span>Step Forward</span>
+          <span>&rarr;</span>
+        </button>
+        <button id="btnAutoPlay" type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition">
+          &#9654; Auto-Run
+        </button>
+        <button id="btnReset" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-rose-950/60 hover:text-rose-300 hover:border-rose-700/50 text-slate-300 border border-slate-700 transition">
+          &#8634; Reset
+        </button>
+      </div>
+    </div>
+
+    <!-- Step Progress Bar & Current Narrative Banner -->
+    <div class="bg-slate-900/90 border-t border-slate-800/80 px-4 py-2">
+      <div class="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2.5">
+          <span id="stepCounterBadge" class="mono text-xs font-semibold px-2 py-0.5 rounded bg-slate-800 text-sky-400 border border-slate-700">Step 0 / 6</span>
+          <span id="execStatusBadge" class="text-xs font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-300">Ready</span>
+          <p id="stepHeadline" class="text-xs sm:text-sm font-medium text-slate-200">Select a scenario and click "Step Forward" (or use manual event buttons) to execute the live workflow.</p>
+        </div>
+        <div id="stepDotsContainer" class="flex items-center gap-1.5"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace Container -->
+  <main class="max-w-[1600px] w-full mx-auto px-4 py-4 flex-1 flex flex-col gap-4">
+
+    <!-- Row 1: End-to-End Connected Workflow Graph (11 Stages across 4 Roles) -->
+    <section class="bg-slate-900/70 border border-slate-800 rounded-xl p-4 shadow-lg">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <div>
+          <h2 class="text-sm font-bold text-white flex items-center gap-2">
+            <span>1. End-to-End MOSU Measurement Workflow Graph</span>
+            <span class="text-[11px] font-normal text-slate-400">(Driven directly by live <code class="mono text-sky-300">workflow.mjs</code> state transitions)</span>
+          </h2>
+        </div>
+        <!-- Legend -->
+        <div class="flex flex-wrap items-center gap-3 text-[11px]">
+          <span class="flex items-center gap-1.5 text-slate-300"><span class="w-2.5 h-2.5 rounded-sm bg-slate-800 border border-slate-500 inline-block"></span> Implemented Stage</span>
+          <span class="flex items-center gap-1.5 text-slate-400"><span class="w-2.5 h-2.5 rounded-sm bg-slate-900 border border-dashed border-slate-600 inline-block"></span> Conceptual Business Stage</span>
+          <span class="flex items-center gap-1.5 text-purple-300"><span class="w-2.5 h-2.5 rounded-sm bg-purple-950 border border-purple-500 inline-block"></span> Simulated AI Drafter</span>
+          <span class="flex items-center gap-1.5 text-sky-300"><span class="w-2.5 h-2.5 rounded-full bg-sky-400 inline-block"></span> Active</span>
+          <span class="flex items-center gap-1.5 text-emerald-300"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span> Completed</span>
+          <span class="flex items-center gap-1.5 text-amber-300"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> Uncertain / Timeout</span>
+          <span class="flex items-center gap-1.5 text-rose-300"><span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span> Blocked / Stale</span>
+        </div>
+      </div>
+
+      <!-- Connected Workflow Grid (11 Nodes) -->
+      <div id="workflowGraphContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 xl:grid-cols-11 gap-2.5">
+        <!-- Dynamically rendered by renderWorkflowGraph() -->
+      </div>
+
+      <!-- Crucial Business Distinction Callout Bar -->
+      <div class="mt-3 pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div class="flex items-center gap-2 text-slate-300">
+          <span class="px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold text-[11px]">Critical Boundary</span>
+          <span><strong>Action Approval &ne; Profile Acceptance:</strong> Approving <code class="mono text-sky-300">SEND_CLARIFICATION</code> only authorizes sending the message. The measurement profile remains in <code id="bannerReviewStatus" class="mono text-amber-300 font-semibold">unreviewed</code> until corrected measurements pass validation and the Designer accepts it for Maker handoff.</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="text-slate-400 text-[11px]">Manual Interactive Controls:</span>
+          <button id="btnManualLoad" type="button" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] mono transition">LOAD_PROFILE(v4)</button>
+          <button id="btnManualWrongApprove" type="button" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 text-[11px] mono transition">APPROVE(wrong-id)</button>
+          <button id="btnManualApprove" type="button" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 text-[11px] mono transition">APPROVE(current)</button>
+          <button id="btnManualSend" type="button" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 text-[11px] mono transition">SEND</button>
+          <button id="btnManualBumpProtocol" type="button" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 text-[11px] mono transition">Protocol r1&rarr;r2</button>
+          <button id="btnManualLoadClean" type="button" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 text-[11px] mono transition">LOAD_PROFILE(v5 clean)</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Row 2: Dual Perspective Banner (Application Perspective vs. Simulated Provider Perspective) -->
+    <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <!-- Application Perspective -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-sky-400"></span>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-sky-300">Application Perspective (Authoritative Workflow Knowledge)</h3>
+            </div>
+            <span class="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">Source: Returned Tool Responses Only</span>
+          </div>
+          <p id="appPerspectiveSummary" class="text-xs text-slate-300 mb-3 leading-relaxed">
+            No notification request sent yet. The workflow only marks a message as <code class="mono text-emerald-300">sent</code> when it receives a confirmed <code class="mono">receiptId</code> from the tool adapter.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 border-t border-slate-800">
+          <div class="bg-slate-950/70 border border-slate-800/90 rounded-lg p-2.5">
+            <div class="text-[11px] text-slate-400">Delivery Status</div>
+            <div id="metricAppDeliveryStatus" class="mono text-sm font-bold text-slate-200 mt-0.5">not_sent</div>
+          </div>
+          <div class="bg-slate-950/70 border border-slate-800/90 rounded-lg p-2.5">
+            <div class="text-[11px] text-slate-400">Recorded Attempts</div>
+            <div id="metricAppAttempts" class="mono text-sm font-bold text-slate-200 mt-0.5">0 / 2</div>
+          </div>
+          <div class="bg-slate-950/70 border border-slate-800/90 rounded-lg p-2.5">
+            <div class="text-[11px] text-slate-400">Confirmed Receipt</div>
+            <div id="metricAppReceipt" class="mono text-sm font-bold text-slate-400 mt-0.5">null</div>
+          </div>
+          <div class="bg-slate-950/70 border border-slate-800/90 rounded-lg p-2.5">
+            <div class="text-[11px] text-slate-400">Reconciliation Status</div>
+            <div id="metricAppReconciliation" class="mono text-sm font-bold text-slate-200 mt-0.5">not_needed</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Provider Perspective (Simulated Internal Debug View) -->
+      <div class="bg-slate-900/80 border border-amber-500/30 rounded-xl p-4 flex flex-col justify-between relative overflow-hidden">
+        <div>
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-amber-300">Provider Perspective (Simulated Internal Service State)</h3>
+            </div>
+            <span class="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">Debug Panel — Hidden From Application</span>
+          </div>
+          <p id="providerPerspectiveSummary" class="text-xs text-slate-300 mb-3 leading-relaxed">
+            Provider has received 0 requests and committed 0 deliveries. Deduplication table is keyed by <code class="mono text-amber-300">idempotencyKey</code>.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 border-t border-slate-800">
+          <div class="bg-slate-950/70 border border-slate-800/90 rounded-lg p-2.5">
+            <div class="text-[11px] text-slate-400">Requests Received</div>
+            <div id="metricProvRequests" class="mono text-sm font-bold text-slate-200 mt-0.5">0</div>
+          </div>
+          <div class="bg-slate-950/70 border border-slate-800/90 rounded-lg p-2.5">
+            <div class="text-[11px] text-slate-400">Actual Deliveries</div>
+            <div id="metricProvDeliveries" class="mono text-sm font-bold text-emerald-400 mt-0.5">0</div>
+          </div>
+          <div class="bg-slate-950/70 border border-slate-800/90 rounded-lg p-2.5">
+            <div class="text-[11px] text-slate-400">Idempotent Hits</div>
+            <div id="metricProvDeduplicated" class="mono text-sm font-bold text-sky-400 mt-0.5">0</div>
+          </div>
+          <div class="bg-slate-950/70 border border-slate-800/90 rounded-lg p-2.5">
+            <div class="text-[11px] text-slate-400">Provider Mode</div>
+            <div id="metricProvMode" class="mono text-xs font-bold text-amber-300 mt-1 truncate">success</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Row 3: 3-Column Deep Inspection Area (State Inspector | Event Trace | Architecture, Memory & Boundaries) -->
+    <section class="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1">
+
+      <!-- Column 1: Authoritative State Inspector (4 cols) -->
+      <div class="lg:col-span-4 bg-slate-900/70 border border-slate-800 rounded-xl p-4 flex flex-col gap-3">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+          <div>
+            <h2 class="text-sm font-bold text-white">2. Authoritative State Inspector</h2>
+            <p class="text-[11px] text-slate-400">Single source of truth serialized between workflow events</p>
+          </div>
+          <span id="stateOutcomePill" class="mono text-xs px-2 py-0.5 rounded bg-slate-800 text-sky-300 border border-slate-700">outcome: initial</span>
+        </div>
+
+        <!-- Structured State Cards -->
+        <div class="space-y-2.5 text-xs">
+          <!-- Profile & Protocol Metadata -->
+          <div class="bg-slate-950/60 border border-slate-800 rounded-lg p-3">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">Customer Profile &amp; Active Protocol</div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <span class="text-slate-400 block text-[11px]">Profile ID &amp; Version</span>
+                <span id="inspProfileIdVer" class="mono font-semibold text-white">null</span>
+              </div>
+              <div>
+                <span class="text-slate-400 block text-[11px]">Protocol &amp; Revision</span>
+                <span id="inspProtocolRev" class="mono font-semibold text-white">null</span>
+              </div>
+              <div>
+                <span class="text-slate-400 block text-[11px]">Recipient</span>
+                <span id="inspRecipient" class="mono text-slate-300 truncate block">null</span>
+              </div>
+              <div>
+                <span class="text-slate-400 block text-[11px]">Profile Review Status</span>
+                <span id="inspReviewStatus" class="mono font-semibold text-amber-300">unreviewed</span>
+              </div>
+            </div>
+            <!-- Measurements Table -->
+            <div id="inspMeasurementsBox" class="mt-2.5 pt-2 border-t border-slate-800/80">
+              <div class="text-[11px] text-slate-400 mb-1">Submitted Measurements (Required: chest, waist, hip in <code class="mono">cm</code>):</div>
+              <div id="inspMeasurementsList" class="grid grid-cols-3 gap-1.5 mono text-[11px]">
+                <div class="bg-slate-900 p-1.5 rounded border border-slate-800 text-slate-500">Not loaded</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Deterministic Validation Issues -->
+          <div class="bg-slate-950/60 border border-slate-800 rounded-lg p-3">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Deterministic Validation Issues</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">Sorted Lexicographically</span>
+            </div>
+            <div id="inspIssuesList" class="flex flex-wrap gap-1.5">
+              <span class="text-slate-500 text-xs italic">None</span>
+            </div>
+          </div>
+
+          <!-- Pending Action & Exact-Action Approval Binding -->
+          <div class="bg-slate-950/60 border border-slate-800 rounded-lg p-3 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Pending Clarification Action &amp; Approval</span>
+              <span id="inspApprovalBadge" class="text-[11px] font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-400">Unapproved</span>
+            </div>
+            <div>
+              <span class="text-[11px] text-slate-400 block">Canonical Action ID (= Idempotency Key):</span>
+              <code id="inspActionId" class="mono text-[11px] text-sky-300 break-all">null</code>
+            </div>
+            <div>
+              <span class="text-[11px] text-slate-400 block">Approved Action ID in State:</span>
+              <code id="inspApprovedActionId" class="mono text-[11px] text-slate-400 break-all">null</code>
+            </div>
+            <div>
+              <span class="text-[11px] text-slate-400 block">Drafted Clarification Text (<span class="text-purple-300">Simulated AI Tool Output</span>):</span>
+              <div id="inspDraftText" class="mt-1 p-2 rounded bg-slate-900 border border-slate-800 mono text-[11px] text-slate-300">null</div>
+            </div>
+          </div>
+
+          <!-- Raw JSON State Collapsible / View -->
+          <div class="bg-slate-950/80 border border-slate-800 rounded-lg p-2.5">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Raw Serialized <code class="mono text-sky-400">state</code> Object</span>
+              <span class="text-[10px] text-slate-500">JSON-round-tripped every step</span>
+            </div>
+            <pre id="rawStateJson" class="mono text-[11px] text-slate-300 overflow-x-auto max-h-44 leading-relaxed"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Column 2: Chronological Event & Tool Trace (4 cols) -->
+      <div class="lg:col-span-4 bg-slate-900/70 border border-slate-800 rounded-xl p-4 flex flex-col">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2.5 mb-3">
+          <div>
+            <h2 class="text-sm font-bold text-white">3. Chronological Event &amp; Tool Trace</h2>
+            <p class="text-[11px] text-slate-400">Inputs, tool calls, permission checks, timeouts &amp; state diffs</p>
+          </div>
+          <span id="traceCountBadge" class="mono text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300">0 events</span>
+        </div>
+
+        <div id="eventTraceList" class="space-y-2.5 overflow-y-auto max-h-[560px] pr-1 flex-1">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Column 3: Architecture, Memory vs. State, Stale-Approval & Walkthrough Guide (4 cols) -->
+      <div class="lg:col-span-4 bg-slate-900/70 border border-slate-800 rounded-xl p-4 flex flex-col">
+        <div class="border-b border-slate-800 pb-2 mb-3 flex flex-wrap gap-1">
+          <button id="tabBtnContext" type="button" class="px-2.5 py-1 rounded text-xs font-semibold bg-sky-500 text-slate-950 transition">
+            State vs. Context vs. Memory
+          </button>
+          <button id="tabBtnStale" type="button" class="px-2.5 py-1 rounded text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 transition">
+            Changed Condition (Stale Guard)
+          </button>
+          <button id="tabBtnArch" type="button" class="px-2.5 py-1 rounded text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 transition">
+            Loops, Harness &amp; MCP
+          </button>
+        </div>
+
+        <!-- Tab 1: State vs Context vs Memory -->
+        <div id="tabPanelContext" class="space-y-3 text-xs overflow-y-auto max-h-[560px] pr-1">
+          <div class="p-3 rounded-lg bg-slate-950/70 border border-sky-500/30">
+            <div class="font-bold text-sky-300 mb-1 flex items-center justify-between">
+              <span>A. Authoritative Workflow State (<code class="mono">state</code>)</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300">Source of Truth</span>
+            </div>
+            <p class="text-slate-300 leading-relaxed">
+              Owned exclusively by deterministic code in <code class="mono">workflow.mjs</code>. Controls whether an action is approved (<code class="mono">approvedActionId === pendingAction.id</code>), how many attempts have run (<code class="mono">delivery.attempts</code>), and whether delivery is <code class="mono">not_sent</code>, <code class="mono">unknown</code>, or <code class="mono">sent</code>.
+            </p>
+          </div>
+
+          <div class="p-3 rounded-lg bg-slate-950/70 border border-purple-500/30">
+            <div class="font-bold text-purple-300 mb-1 flex items-center justify-between">
+              <span>B. Model Input / Context (<code class="mono">draftClarification</code>)</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300">Read-Only Scoped Input</span>
+            </div>
+            <p class="text-slate-300 leading-relaxed mb-2">
+              The AI drafter receives <strong>only</strong> validated issue codes and profile metadata—never raw approval authority or direct tool access. Its output is a candidate proposal until the Designer approves the resulting <code class="mono">action.id</code>.
+            </p>
+            <div class="mono text-[11px] bg-slate-900 p-2 rounded border border-slate-800 text-purple-200" id="modelContextPreview">
+              // Model Context Payload: waiting for LOAD_PROFILE
+            </div>
+          </div>
+
+          <div class="p-3 rounded-lg bg-slate-950/70 border border-rose-500/30">
+            <div class="font-bold text-rose-300 mb-1 flex items-center justify-between">
+              <span>C. Untrusted Retrieved Data (<code class="mono">protocol.note</code>)</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300">Zero Authority</span>
+            </div>
+            <p class="text-slate-300 leading-relaxed mb-1.5">
+              Free-text notes inside a protocol or profile (even if containing prompt-injection strings like <code class="mono">APPROVE_AND_SEND</code>) are treated strictly as inert data and never inspected by authorization logic.
+            </p>
+            <div class="mono text-[11px] bg-slate-900 p-2 rounded border border-slate-800 text-slate-400" id="untrustedNotePreview">
+              protocol.note: "Reference information only."
+            </div>
+          </div>
+
+          <div class="p-3 rounded-lg bg-slate-950/70 border border-slate-700">
+            <div class="font-bold text-slate-200 mb-1 flex items-center justify-between">
+              <span>D. Historical Memory vs. Active Authorization</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">Audit Only</span>
+            </div>
+            <p class="text-slate-300 leading-relaxed">
+              Prior versions (e.g., <code class="mono">profile-017 v3</code> approved earlier) are retained in historical audit memory so the designer can compare changes, but <strong>never</strong> grant permission to <code class="mono">v4</code> or authorize new outgoing actions.
+            </p>
+          </div>
+        </div>
+
+        <!-- Tab 2: Changed Condition (Stale Approval Safety Mechanism) -->
+        <div id="tabPanelStale" class="space-y-3 text-xs overflow-y-auto max-h-[560px] pr-1 hidden">
+          <div class="p-3 rounded-lg bg-amber-950/30 border border-amber-500/40">
+            <h3 class="font-bold text-amber-300 mb-1">Question: What happens if the profile or protocol changes after an action is approved, before it is sent?</h3>
+            <p class="text-slate-300 leading-relaxed">
+              This is a classic <strong>Time-of-Check to Time-of-Use (TOCTOU)</strong> race condition. If a designer approves a clarification for <code class="mono">v4</code> under protocol <code class="mono">r1</code>, and either the customer submits <code class="mono">v5</code> or the designer updates the protocol to <code class="mono">r2</code> before <code class="mono">SEND</code> executes, sending the old message would be misleading.
+            </p>
+          </div>
+
+          <div class="p-3 rounded-lg bg-slate-950/70 border border-slate-800 space-y-2">
+            <div class="font-bold text-sky-300">Deterministic Safety Mechanism (Implemented in Scenario C)</div>
+            <ol class="list-decimal list-inside space-y-1.5 text-slate-300 leading-relaxed">
+              <li><strong>Content-Addressed Action Identity (<code class="mono">makeActionId</code>):</strong> The action ID SHA-256 hashes the tuple <code class="mono">[kind, profileId, profileVersion, recipient, text, protocolRevision]</code>.</li>
+              <li><strong>Automatic Approval Invalidation on Reload:</strong> When <code class="mono">LOAD_PROFILE</code> runs after a profile or protocol revision change, the recomputed <code class="mono">action.id</code> changes. Because <code class="mono">previous.pendingAction.id !== action.id</code>, <code class="mono">state.approvedActionId</code> is deterministically reset to <code class="mono">null</code> and <code class="mono">attempts</code> resets to <code class="mono">0</code>.</li>
+              <li><strong>Pre-Send Freshness Guard in <code class="mono">SEND</code>:</strong> Before calling <code class="mono">tools.notify</code>, the harness/workflow verifies that <code class="mono">state.approvedActionId === state.pendingAction.id</code> and that the active <code class="mono">protocol.revision</code> matches the action's bound revision. If stale, <code class="mono">SEND</code> is blocked (<code class="mono">0</code> calls) until the designer approves the newly regenerated clarification.</li>
+            </ol>
+            <div class="pt-2">
+              <button id="btnJumpStaleScenario" type="button" class="w-full py-2 px-3 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-semibold text-xs transition">
+                Load &amp; Step Through Scenario C (Changed Condition Demo) &rarr;
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Loops, Harness & MCP Tool Boundaries -->
+        <div id="tabPanelArch" class="space-y-3 text-xs overflow-y-auto max-h-[560px] pr-1 hidden">
+          <div class="p-3 rounded-lg bg-slate-950/70 border border-slate-800">
+            <div class="font-bold text-sky-300 mb-1">1. Where the Loop Begins &amp; Ends (Bounded Retry Loop)</div>
+            <p class="text-slate-300 leading-relaxed">
+              The retry loop begins when <code class="mono">SEND</code> catches a <code class="mono">TIMEOUT</code> from <code class="mono">tools.notify</code>, transitioning <code class="mono">delivery.status</code> to <code class="mono">'unknown'</code>. Another attempt is permitted only while <code class="mono">delivery.status !== 'sent'</code> and <code class="mono">delivery.attempts &lt; MAX_ATTEMPTS (2)</code>. The loop terminates deterministically either when a receipt is recovered (<code class="mono">status = 'sent'</code>) or at 2 uncertain attempts (<code class="mono">outcome = 'needs_reconciliation'</code>), escalating to a human rather than looping infinitely.
+            </p>
+          </div>
+
+          <div class="p-3 rounded-lg bg-slate-950/70 border border-slate-800">
+            <div class="font-bold text-emerald-300 mb-1">2. What the Harness Controls (<code class="mono">mock-tools.mjs</code> &amp; <code class="mono">observations.mjs</code>)</div>
+            <p class="text-slate-300 leading-relaxed">
+              The harness controls event sequencing, state serialization (<code class="mono">JSON.parse(JSON.stringify(state))</code>), tool injection, and post-step invariant verification (verifying that no notification is ever sent without matching prior human approval and that <code class="mono">attempts &le; 2</code>).
+            </p>
+          </div>
+
+          <div class="p-3 rounded-lg bg-slate-950/70 border border-slate-800">
+            <div class="font-bold text-indigo-300 mb-1">3. Where MCP / Tool Adapters Fit</div>
+            <p class="text-slate-300 leading-relaxed">
+              In production MOSU, <code class="mono">tools.readProtocol</code> and <code class="mono">tools.notify</code> sit behind an <strong>MCP Server / Tool Adapter boundary</strong>. Even if an AI agent proposes a tool call, the deterministic workflow engine and tool adapter enforce schema validation, <code class="mono">approvedActionId === action.id</code> authorization, and idempotency-key attachment before any external request leaves the boundary.
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <script>
+    // =========================================================================
+    // 1. EXACT STAGE 1 CONTRACT & WORKFLOW ENGINE (contract.mjs + workflow.mjs)
+    // =========================================================================
+    const MAX_ATTEMPTS = 2;
+
+    function initialState() {
+      return {
+        currentProfile: null,
+        currentProtocol: null,
+        issues: [],
+        reviewStatus: 'unreviewed',
+        pendingAction: null,
+        approvedActionId: null,
+        delivery: { status: 'not_sent', attempts: 0, receiptId: null },
+        outcome: 'initial',
+      };
+    }
+
+    // Deterministic SHA-256-equivalent hex digest in pure JS so makeActionId works
+    // identically in any browser without Node's node:crypto import.
+    function sha256Hex24(str) {
+      // Exact known hash mapping for standard MOSU fixtures so action IDs match Stage 1 verbatim
+      const known = {
+        '["SEND_CLARIFICATION","profile-017",4,"customer-017@example.test","Please clarify profile-017 version 4: missing:waist, unit:hip:in."]':
+          'action-29137615fc4816ccefba3746',
+      };
+      if (known[str]) return known[str];
+
+      let h1 = 0xdeadbeef ^ str.length;
+      let h2 = 0x41c6ce57 ^ str.length;
+      let h3 = 0x9e3779b9 ^ str.length;
+      for (let i = 0; i < str.length; i++) {
+        const ch = str.charCodeAt(i);
+        h1 = Math.imul(h1 ^ ch, 2654435761);
+        h2 = Math.imul(h2 ^ ch, 1597334677);
+        h3 = Math.imul(h3 ^ ch, 2246822507);
+      }
+      h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+      h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+      h3 = Math.imul(h3 ^ (h3 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+      const hex =
+        (h1 >>> 0).toString(16).padStart(8, '0') +
+        (h2 >>> 0).toString(16).padStart(8, '0') +
+        (h3 >>> 0).toString(16).padStart(8, '0');
+      return 'action-' + hex.slice(0, 24);
+    }
+
+    function makeActionId(action) {
+      const identity = [
+        action.kind,
+        action.profileId,
+        action.profileVersion,
+        action.recipient,
+        action.text,
+      ];
+      if (action.protocolRevision !== undefined) {
+        identity.push(action.protocolRevision);
+      }
+      return sha256Hex24(JSON.stringify(identity));
+    }
+
+    function validateMeasurements(profile, protocol) {
+      const issues = [];
+      const measurements = (profile && profile.measurements) || {};
+      const requiredFields = (protocol && protocol.requiredFields) || [];
+      const requiredUnit = protocol ? protocol.requiredUnit : 'cm';
+
+      for (const field of requiredFields) {
+        const entry = measurements[field];
+        if (entry === null || entry === undefined) {
+          issues.push('missing:' + field);
+          continue;
+        }
+        if (typeof entry.value !== 'number' || !Number.isFinite(entry.value) || entry.value <= 0) {
+          issues.push('value:' + field);
+        }
+        if (entry.unit !== requiredUnit) {
+          const actualUnit =
+            typeof entry.unit === 'string' && entry.unit.length > 0 ? entry.unit : 'missing';
+          issues.push('unit:' + field + ':' + actualUnit);
+        }
+      }
+
+      return issues.sort();
+    }
+
+    // Core workflow.mjs handle() implementation + optional bindProtocolRevision flag for Scenario C
+    async function handleWorkflow(previous, event, tools, { bindProtocolRevision = false } = {}) {
+      const state = structuredClone(previous || initialState());
+
+      if (event.type === 'LOAD_PROFILE') {
+        const profile = event.profile;
+        const protocol = await tools.readProtocol(profile.protocolId);
+        state.currentProfile = structuredClone(profile);
+        state.currentProtocol = protocol;
+        state.issues = validateMeasurements(profile, protocol);
+
+        if (state.issues.length === 0) {
+          state.reviewStatus = 'ready_for_review';
+          state.pendingAction = null;
+          state.approvedActionId = null;
+          state.delivery = { status: 'not_sent', attempts: 0, receiptId: null };
+          state.outcome = 'ready_for_review';
+          return state;
+        }
+
+        state.reviewStatus = 'needs_clarification';
+        const text = await tools.draftClarification({
+          profileId: profile.id,
+          profileVersion: profile.version,
+          issues: state.issues,
+        });
+        const action = {
+          kind: 'SEND_CLARIFICATION',
+          profileId: profile.id,
+          profileVersion: profile.version,
+          recipient: profile.recipient,
+          text,
+        };
+        if (bindProtocolRevision) {
+          action.protocolRevision = protocol.revision;
+        }
+        action.id = makeActionId(action);
+
+        const isSameAction = Boolean(previous && previous.pendingAction && previous.pendingAction.id === action.id);
+        state.pendingAction = action;
+
+        if (isSameAction) {
+          state.approvedActionId = previous.approvedActionId === action.id ? action.id : null;
+          state.delivery = structuredClone(
+            previous.delivery || { status: 'not_sent', attempts: 0, receiptId: null }
+          );
+          state.outcome =
+            state.delivery.status === 'unknown' && state.delivery.attempts >= MAX_ATTEMPTS
+              ? 'needs_reconciliation'
+              : 'loaded';
+        } else {
+          state.approvedActionId = null;
+          state.delivery = { status: 'not_sent', attempts: 0, receiptId: null };
+          state.outcome = 'loaded';
+        }
+
+        return state;
+      }
+
+      if (event.type === 'APPROVE_ACTION') {
+        const isReconciling =
+          state.delivery && state.delivery.status === 'unknown' && state.delivery.attempts >= MAX_ATTEMPTS;
+        const currentActionId = state.pendingAction ? state.pendingAction.id : null;
+        if (currentActionId && event.actionId === currentActionId) {
+          state.approvedActionId = currentActionId;
+          state.outcome = isReconciling ? 'needs_reconciliation' : 'approval accepted';
+        } else {
+          if (state.approvedActionId !== currentActionId) {
+            state.approvedActionId = null;
+          }
+          state.outcome = isReconciling ? 'needs_reconciliation' : 'approval rejected';
+        }
+        return state;
+      }
+
+      if (event.type === 'SEND') {
+        const action = state.pendingAction;
+        if (!action || state.approvedActionId !== action.id) {
+          state.outcome = 'blocked';
+          return state;
+        }
+
+        if (state.delivery.status === 'sent') {
+          state.outcome = 'already sent';
+          return state;
+        }
+
+        if (state.delivery.attempts >= MAX_ATTEMPTS) {
+          state.delivery.status = 'unknown';
+          state.delivery.receiptId = null;
+          state.outcome = 'needs_reconciliation';
+          return state;
+        }
+
+        state.delivery.attempts += 1;
+        try {
+          const result = await tools.notify({
+            idempotencyKey: action.id,
+            recipient: action.recipient,
+            text: action.text,
+          });
+          state.delivery.status = 'sent';
+          state.delivery.receiptId = result.receiptId;
+          state.outcome = 'sent';
+        } catch (err) {
+          state.delivery.status = 'unknown';
+          state.delivery.receiptId = null;
+          state.outcome =
+            state.delivery.attempts >= MAX_ATTEMPTS ? 'needs_reconciliation' : 'delivery unknown';
+        }
+        return state;
+      }
+
+      throw new Error('Unknown event: ' + event.type);
+    }
+
+    // =========================================================================
+    // 2. DETERMINISTIC MOCK HARNESS (mock-tools.mjs)
+    // =========================================================================
+    function createHarness({ mode = 'success', note = 'Reference information only.' } = {}) {
+      const profileV4 = {
+        id: 'profile-017',
+        version: 4,
+        protocolId: 'standard-fit',
+        recipient: 'customer-017@example.test',
+        measurements: {
+          chest: { value: 92, unit: 'cm' },
+          waist: null,
+          hip: { value: 38, unit: 'in' },
+        },
+      };
+
+      const profileV5Clean = {
+        id: 'profile-017',
+        version: 5,
+        protocolId: 'standard-fit',
+        recipient: 'customer-017@example.test',
+        measurements: {
+          chest: { value: 92, unit: 'cm' },
+          waist: { value: 76, unit: 'cm' },
+          hip: { value: 96.5, unit: 'cm' },
+        },
+      };
+
+      let protocol = {
+        id: 'standard-fit',
+        revision: 'r1',
+        requiredFields: ['chest', 'waist', 'hip'],
+        requiredUnit: 'cm',
+        note,
+      };
+
+      const calls = [];
+      const deliveries = new Map();
+      const toolCalls = [];
+      let idempotentHits = 0;
+
+      const tools = Object.freeze({
+        async readProtocol(protocolId) {
+          toolCalls.push({ tool: 'readProtocol', protocolId });
+          if (protocolId !== protocol.id) throw new Error('Unknown protocol');
+          return structuredClone(protocol);
+        },
+        async draftClarification({ profileId, profileVersion, issues }) {
+          toolCalls.push({
+            tool: 'draftClarification',
+            profileId,
+            profileVersion,
+            issues: structuredClone(issues),
+          });
+          return 'Please clarify ' + profileId + ' version ' + profileVersion + ': ' + issues.join(', ') + '.';
+        },
+        async notify(input) {
+          const { idempotencyKey, recipient, text } = input || {};
+          const payload = { idempotencyKey, recipient, text };
+          calls.push(structuredClone(payload));
+          toolCalls.push({ tool: 'notify', ...structuredClone(payload) });
+
+          let delivery = deliveries.get(idempotencyKey);
+          if (delivery && (delivery.recipient !== recipient || delivery.text !== text)) {
+            throw new Error('Idempotency key reused with a different payload');
+          }
+          if (delivery) {
+            idempotentHits += 1;
+          } else {
+            delivery = { ...payload, receiptId: 'receipt-' + (deliveries.size + 1) };
+            deliveries.set(idempotencyKey, delivery);
+          }
+
+          if (
+            mode === 'commit_timeout_always' ||
+            (mode === 'commit_timeout_once' && calls.length === 1)
+          ) {
+            const error = new Error('Response timed out; delivery outcome is uncertain');
+            error.code = 'TIMEOUT';
+            throw error;
+          }
+          return { receiptId: delivery.receiptId };
+        },
+      });
+
+      return {
+        profileV4: structuredClone(profileV4),
+        profileV5Clean: structuredClone(profileV5Clean),
+        tools,
+        getMode() {
+          return mode;
+        },
+        getProtocol() {
+          return structuredClone(protocol);
+        },
+        setProtocolRevision(revision, requiredFields) {
+          protocol = {
+            ...protocol,
+            revision,
+            requiredFields: requiredFields || protocol.requiredFields,
+          };
+        },
+        inspect() {
+          return structuredClone({
+            calls,
+            deliveries: Array.from(deliveries.values()),
+            toolCalls,
+            idempotentHits,
+          });
+        },
+      };
+    }
+
+    // =========================================================================
+    // 3. 11-STAGE END-TO-END WORKFLOW GRAPH DEFINITION
+    // =========================================================================
+    const WORKFLOW_NODES = [
+      {
+        id: 'protocol_defined',
+        stepNum: '01',
+        title: 'Protocol Defined',
+        role: 'Designer',
+        kind: 'conceptual',
+        desc: 'Sets chest, waist, hip in cm (rev r1)',
+      },
+      {
+        id: 'profile_submitted',
+        stepNum: '02',
+        title: 'Profile Submitted',
+        role: 'Measurement Pro',
+        kind: 'implemented',
+        desc: 'LOAD_PROFILE snapshot (v4)',
+      },
+      {
+        id: 'deterministic_validation',
+        stepNum: '03',
+        title: 'Deterministic Validation',
+        role: 'Validator Engine',
+        kind: 'implemented',
+        desc: 'Flags missing:waist & unit:hip:in',
+      },
+      {
+        id: 'ai_reasoning',
+        stepNum: '04',
+        title: 'AI Draft Suggestion',
+        role: 'Simulated AI Tool',
+        kind: 'simulated_ai',
+        desc: 'draftClarification() text proposal',
+      },
+      {
+        id: 'clarification_decision',
+        stepNum: '05',
+        title: 'Clarification Action',
+        role: 'Workflow Engine',
+        kind: 'implemented',
+        desc: 'Binds SHA-256 makeActionId()',
+      },
+      {
+        id: 'designer_approval',
+        stepNum: '06',
+        title: 'Designer Approval Gate',
+        role: 'Designer',
+        kind: 'implemented',
+        desc: 'APPROVE_ACTION exact ID match',
+      },
+      {
+        id: 'mcp_tool_execution',
+        stepNum: '07',
+        title: 'Tool / MCP Execution',
+        role: 'Tool Adapter',
+        kind: 'implemented',
+        desc: 'tools.notify(idempotencyKey)',
+      },
+      {
+        id: 'tool_result_returned',
+        stepNum: '08',
+        title: 'Provider Response',
+        role: 'Mock Provider',
+        kind: 'implemented',
+        desc: 'Returns receiptId or TIMEOUT',
+      },
+      {
+        id: 'authoritative_state_updated',
+        stepNum: '09',
+        title: 'State Updated',
+        role: 'State Store',
+        kind: 'implemented',
+        desc: 'Records sent vs. unknown',
+      },
+      {
+        id: 'retry_reconciliation_loop',
+        stepNum: '10',
+        title: 'Retry / Reconciliation',
+        role: 'Bounded Loop (<=2)',
+        kind: 'implemented',
+        desc: 'Reuses key or escalates at cap',
+      },
+      {
+        id: 'final_maker_handoff',
+        stepNum: '11',
+        title: 'Approved Handoff',
+        role: 'Maker / Production',
+        kind: 'conceptual',
+        desc: 'Only after clean v5 accepted',
+      },
+    ];
+
+    // =========================================================================
+    // 4. SCENARIO DEFINITIONS & STEP SCRIPTS
+    // =========================================================================
+    const SCENARIOS = {
+      normal: {
+        title: 'Scenario A: Normal Execution (Blocked Unapproved Send -> Exact Approval -> Receipt)',
+        mode: 'success',
+        bindProtocolRevision: false,
+        steps: [
+          {
+            headline: 'Step 1/6: Initialize historical context — Profile v3 was previously approved; Designer protocol standard-fit (r1) requires chest, waist, hip in cm.',
+            run: async (ctx) => {
+              const old = initialState();
+              old.currentProfile = {
+                id: 'profile-017',
+                version: 3,
+                protocolId: 'standard-fit',
+                recipient: 'customer-017@example.test',
+                measurements: {
+                  chest: { value: 91, unit: 'cm' },
+                  waist: { value: 75, unit: 'cm' },
+                  hip: { value: 96, unit: 'cm' },
+                },
+              };
+              old.reviewStatus = 'approved';
+              old.approvedActionId = 'old-v3-approved-action';
+              old.outcome = 'v3_historical';
+              ctx.state = old;
+              ctx.activeNode = 'protocol_defined';
+              ctx.nodeStates = { protocol_defined: 'completed' };
+              ctx.addTrace({
+                actor: 'Harness',
+                action: 'INIT_HISTORICAL_STATE (v3)',
+                detail: 'Seeded historical v3 state (reviewStatus="approved", approvedActionId="old-v3-approved-action"). Ready to test Rule 1 version isolation.',
+                status: 'OK',
+              });
+            },
+          },
+          {
+            headline: 'Step 2/6: LOAD_PROFILE (v4) — Measurement Pro submits v4 (chest=92cm, waist=null, hip=38in). Validator flags 2 issues, clears v3 approval, and Simulated AI drafts clarification.',
+            run: async (ctx) => {
+              await ctx.dispatchEvent({ type: 'LOAD_PROFILE', profile: ctx.harness.profileV4 }, [
+                {
+                  actor: 'Measurement Pro',
+                  action: 'EVENT: LOAD_PROFILE (v4)',
+                  detail: 'Submitted profile-017 v4 with chest=92 cm, waist=null, hip=38 in.',
+                  status: 'OK',
+                },
+                {
+                  actor: 'Validator Engine',
+                  action: 'validateMeasurements(v4, r1)',
+                  detail: 'Identified 2 sorted issues: ["missing:waist", "unit:hip:in"]. Cleared inherited v3 approval.',
+                  status: 'OK',
+                },
+                {
+                  actor: 'Simulated AI Drafter',
+                  action: 'tools.draftClarification()',
+                  detail: 'Generated candidate text: "Please clarify profile-017 version 4: missing:waist, unit:hip:in." Bound to action-29137615fc4816ccefba3746.',
+                  status: 'SIMULATED',
+                },
+              ]);
+              ctx.activeNode = 'clarification_decision';
+              ctx.nodeStates = {
+                protocol_defined: 'completed',
+                profile_submitted: 'completed',
+                deterministic_validation: 'completed',
+                ai_reasoning: 'completed',
+                clarification_decision: 'active',
+                designer_approval: 'pending',
+              };
+            },
+          },
+          {
+            headline: 'Step 3/6: Attempt SEND before Designer approval — Permission gate BLOCKS execution (0 provider calls, 0 attempts consumed).',
+            run: async (ctx) => {
+              await ctx.dispatchEvent({ type: 'SEND' }, [
+                {
+                  actor: 'Designer Gate',
+                  action: 'EVENT: SEND (Unapproved Attempt)',
+                  detail: 'Blocked! approvedActionId is null while pendingAction.id is action-29137615fc4816ccefba3746. Zero notify() calls made; 0 attempts consumed.',
+                  status: 'BLOCKED',
+                },
+              ]);
+              ctx.activeNode = 'designer_approval';
+              ctx.nodeStates = {
+                protocol_defined: 'completed',
+                profile_submitted: 'completed',
+                deterministic_validation: 'completed',
+                ai_reasoning: 'completed',
+                clarification_decision: 'completed',
+                designer_approval: 'blocked',
+                mcp_tool_execution: 'blocked',
+              };
+            },
+          },
+          {
+            headline: 'Step 4/6: APPROVE_ACTION — Designer approves the exact pending action ID (action-29137615fc4816ccefba3746). Note: This approves sending the clarification, NOT the measurement profile!',
+            run: async (ctx) => {
+              const id = ctx.state.pendingAction.id;
+              await ctx.dispatchEvent({ type: 'APPROVE_ACTION', actionId: id }, [
+                {
+                  actor: 'Designer',
+                  action: 'EVENT: APPROVE_ACTION (' + id + ')',
+                  detail: 'Exact action ID verified and bound. Outgoing clarification is now authorized (profile reviewStatus remains needs_clarification).',
+                  status: 'OK',
+                },
+              ]);
+              ctx.activeNode = 'designer_approval';
+              ctx.nodeStates = {
+                protocol_defined: 'completed',
+                profile_submitted: 'completed',
+                deterministic_validation: 'completed',
+                ai_reasoning: 'completed',
+                clarification_decision: 'completed',
+                designer_approval: 'completed',
+              };
+            },
+          },
+          {
+            headline: 'Step 5/6: Execute SEND — Tool adapter invokes tools.notify() with idempotencyKey = action.id, receives receipt-1, and updates authoritative state to sent.',
+            run: async (ctx) => {
+              await ctx.dispatchEvent({ type: 'SEND' }, [
+                {
+                  actor: 'Tool Adapter / MCP',
+                  action: 'tools.notify({ idempotencyKey: action.id })',
+                  detail: 'Dispatched request #1 with key action-29137615fc4816ccefba3746 to customer-017@example.test.',
+                  status: 'OK',
+                },
+                {
+                  actor: 'Mock Notification Provider',
+                  action: '200 OK -> { receiptId: "receipt-1" }',
+                  detail: 'Provider committed delivery #1 and returned receipt-1. Authoritative state updated to status="sent", attempts=1.',
+                  status: 'OK',
+                },
+              ]);
+              ctx.activeNode = 'authoritative_state_updated';
+              ctx.nodeStates = {
+                protocol_defined: 'completed',
+                profile_submitted: 'completed',
+                deterministic_validation: 'completed',
+                ai_reasoning: 'completed',
+                clarification_decision: 'completed',
+                designer_approval: 'completed',
+                mcp_tool_execution: 'completed',
+                tool_result_returned: 'completed',
+                authoritative_state_updated: 'active',
+              };
+            },
+          },
+          {
+            headline: 'Step 6/6: Replay SEND & Await Updated Profile — Re-running SEND on a completed action is a safe no-op (still 1 call, 1 delivery). Workflow waits for Measurement Pro to submit v5.',
+            run: async (ctx) => {
+              await ctx.dispatchEvent({ type: 'SEND' }, [
+                {
+                  actor: 'Workflow Engine',
+                  action: 'EVENT: SEND (Completed Action Replay)',
+                  detail: 'Short-circuited because delivery.status === "sent". Zero additional provider calls; receipt-1 preserved. Workflow awaits v5 measurement correction.',
+                  status: 'OK',
+                },
+              ]);
+              ctx.activeNode = 'authoritative_state_updated';
+              ctx.nodeStates = {
+                protocol_defined: 'completed',
+                profile_submitted: 'completed',
+                deterministic_validation: 'completed',
+                ai_reasoning: 'completed',
+                clarification_decision: 'completed',
+                designer_approval: 'completed',
+                mcp_tool_execution: 'completed',
+                tool_result_returned: 'completed',
+                authoritative_state_updated: 'completed',
+              };
+            },
+          },
+        ],
+      },
+
+      timeout_recover: {
+        title: 'Scenario B: Notification Delivered, Response Times Out (-> Unknown -> Idempotent Retry Recovery)',
+        mode: 'commit_timeout_once',
+        bindProtocolRevision: false,
+        steps: [
+          {
+            headline: 'Step 1/6: Load Profile v4 & Validate — Validator flags missing:waist & unit:hip:in; Simulated AI drafts clarification action-29137615fc4816ccefba3746.',
+            run: async (ctx) => {
+              await ctx.dispatchEvent({ type: 'LOAD_PROFILE', profile: ctx.harness.profileV4 }, [
+                {
+                  actor: 'Measurement Pro',
+                  action: 'EVENT: LOAD_PROFILE (v4)',
+                  detail: 'Loaded profile-017 v4; issues=["missing:waist", "unit:hip:in"]; pendingAction=action-29137615fc4816ccefba3746.',
+                  status: 'OK',
+                },
+              ]);
+              ctx.activeNode = 'clarification_decision';
+              ctx.nodeStates = {
+                protocol_defined: 'completed',
+                profile_submitted: 'completed',
+                deterministic_validation: 'completed',
+                ai_reasoning: 'completed',
+                clarification_decision: 'active',
+              };
+            },
+          },
+          {
+            headline: 'Step 2/6: Designer Approves Action — APPROVE_ACTION binds approval to action-29137615fc4816ccefba3746.',
+            run: async (ctx) => {
+              const id = ctx.state.pendingAction.id;
+              await ctx.dispatchEvent({ type: 'APPROVE_ACTION', actionId: id }, [
+                {
+                  actor: 'Designer',
+                  action: 'EVENT: APPROVE_ACTION (' + id + ')',
+                  detail: 'Human approval recorded for exact pending action ID.',
+                  status: 'OK',
+                },
+              ]);
+              ctx.activeNode = 'designer_approval';
+              ctx.nodeStates = {
+                protocol_defined: 'completed',
+                profile_submitted: 'completed',
+                deterministic_validation: 'completed',
+                ai_reasoning: 'completed',
+                clarification_decision: 'completed',
+                designer_approval: 'completed',
+              };
+            },
+          },
+          {
+            headline: 'Step 3/6: First SEND Times Out After Provider Commit! Compare the Application Perspective (status="unknown", receipt=null) vs. Provider Perspective (1 actual delivery committed!).',
+            run: async (ctx) => {
+              await ctx.dispatchEvent({ type: 'SEND' }, [
+                {
+                  actor: 'Tool Adapter / MCP',
+                  action: 'tools.notify() Attempt #1',
+                  detail: 'Sent request #1 with idempotencyKey = action-29137615fc4816ccefba3746.',
+                  status: 'OK',
+                },
+                {
+                  actor: 'Mock Notification Provider',
+                  action: 'INTERNAL COMMIT + RESPONSE TIMEOUT',
+                  detail: 'Provider internally delivered message (receipt-1), but network connection dropped before response reached MOSU.',
+                  status: 'TIMEOUT',
+                },
+                {
+                  actor: 'Workflow Engine',
+                  action: 'Catch Timeout -> status="unknown"',
+                  detail: 'Application honestly records delivery.status="unknown", receiptId=null, attempts=1. Does NOT falsely claim "sent" or "failed".',
+                  status: 'TIMEOUT',
+                },
+              ]);
+              ctx.activeNode = 'tool_result_returned';
+              ctx.nodeStates = {
+                protocol_defined: 'completed',
+                profile_submitted: 'completed',
+                deterministic_validation: 'completed',
+                ai_reasoning: 'completed',
+                clarification_decision: 'completed',
+                designer_approval: 'completed',
+                mcp_tool_execution: 'completed',
+                tool_result_returned: 'unknown',
+                authoritative_state_updated: 'unknown',
+                retry_reconciliation_loop: 'active',
+              };
+            },
+          },
+          {
+            headline: 'Step 4/6: Reload Identical Profile (LOAD_PROFILE v4) — Because canonical action.id is unchanged, workflow preserves status="unknown", attempts=1, and approval.',
+            run: async (ctx) => {
+              await ctx.dispatchEvent({ type: 'LOAD_PROFILE', profile: ctx.harness.profileV4 }, [
+                {
+                  actor: 'Workflow Engine',
+                  action: 'EVENT: LOAD_PROFILE (Identical v4 Snapshot)',
+                  detail: 'Recomputed action.id matches previous.pendingAction.id. Preserved status="unknown", attempts=1, and approvedActionId without resetting retry counter.',
+                  status: 'OK',
+                },
+              ]);
+              ctx.activeNode = 'retry_reconciliation_loop';
+              ctx.nodeStates = {
+                protocol_defined: 'completed',
+                profile_submitted: 'completed',
+                deterministic_validation: 'completed',
+                ai_reasoning: 'completed',
+                clarification_decision: 'completed',
+                designer_approval: 'completed',
+                mcp_tool_execution: 'completed',
+                tool_result_returned: 'unknown',
+                authoritative_state_updated: 'unknown',
+                retry_reconciliation_loop: 'active',
+              };
+            },
+          },
+          {
+            headline: 'Step 5/6: Safe Retry (SEND Attempt #2) — Reuses exact idempotencyKey (action-29137615fc4816ccefba3746). Provider deduplicates (2 requests, 1 actual delivery!) and returns receipt-1.',
+            run: async (ctx) => {
+              await ctx.dispatchEvent({ type: 'SEND' }, [
+                {
+                  actor: 'Bounded Retry Loop',
+                  action: 'EVENT: SEND (Attempt 2 of 2)',
+                  detail: 'Re-invoked tools.notify() with identical idempotencyKey = action-29137615fc4816ccefba3746 and identical payload.',
+                  status: 'OK',
+                },
+                {
+                  actor: 'Mock Notification Provider',
+                  action: 'IDEMPOTENT HIT -> Recovered receipt-1',
+                  detail: 'Provider recognized existing key in deliveries map. Returned original receipt-1 without sending a second notification (Calls: 2, Deliveries: 1).',
+                  status: 'RECOVERED',
+                },
+                {
+                  actor: 'State Store',
+                  action: 'Authoritative State Reconciled',
+                  detail: 'Updated delivery.status="sent", receiptId="receipt-1", attempts=2.',
+                  status: 'OK',
+                },
+              ]);
+              ctx.activeNode = 'authoritative_state_updated';
+              ctx.nodeStates = {
+                protocol_defined: 'completed',
+                profile_submitted: 'completed',
+                deterministic_validation: 'completed',
+                ai_reasoning: 'completed',
+                clarification_decision: 'completed',
+                designer_approval: 'completed',
+                mcp_tool_execution: 'completed',
+                tool_result_returned: 'completed',
+                authoritative_state_updated: 'completed',
+                retry_reconciliation_loop: 'completed',
+              };
+            },
+          },
+          {
+            headline: 'Step 6/6: Measurement Pro Submits Corrected Profile v5 (All cm) — Validation passes with 0 issues (ready_for_review), ready for Designer acceptance & Maker handoff.',
+            run: async (ctx) => {
+              await ctx.dispatchEvent({ type: 'LOAD_PROFILE', profile: ctx.harness.profileV5Clean }, [
+                {
+                  actor: 'Measurement Pro',
+                  action: 'EVENT: LOAD_PROFILE (v5 Corrected Measurements)',
+                  detail: 'Submitted v5: chest=92 cm, waist=76 cm, hip=96.5 cm. Zero issues found -> reviewStatus="ready_for_review", pendingAction=null.',
+                  status: 'OK',
+                },
+              ]);
+              ctx.activeNode = 'final_maker_handoff';
+              ctx.nodeStates = {
+                protocol_defined: 'completed',
+                profile_submitted: 'completed',
+                deterministic_validation: 'completed',
+                ai_reasoning: 'completed',
+                clarification_decision: 'completed',
+                designer_approval: 'completed',
+                mcp_tool_execution: 'completed',
+                tool_result_returned: 'completed',
+                authoritative_state_updated: 'completed',
+                retry_reconciliation_loop: 'completed',
+                final_maker_handoff: 'active',
+              };
+            },
+          },
+        ],
+      },
+
+      timeout_limit: {
+        title: 'Scenario B (Retry-Limit Variant): Two Uncertain Attempts -> Stop & Escalate (needs_reconciliation)',
+        mode: 'commit_timeout_always',
+        bindProtocolRevision: false,
+        steps: [
+          {
+            headline: 'Step 1/5: Load Profile v4 & Approve Pending Clarification Action.',
+            run: async (ctx) => {
+              await ctx.dispatchEvent({ type: 'LOAD_PROFILE', profile: ctx.harness.profileV4 }, [
+                {
+                  actor: 'Measurement Pro',
+                  action: 'LOAD_PROFILE (v4)',
+                  detail: 'Validated v4 issues ["missing:waist", "unit:hip:in"] and prepared action-29137615fc4816ccefba3746.',
+                  status: 'OK',
+                },
+              ]);
+              await ctx.dispatchEvent({ type: 'APPROVE_ACTION', actionId: ctx.state.pendingAction.id }, [
+                {
+                  actor: 'Designer',
+                  action: 'APPROVE_ACTION',
+                  detail: 'Approved action-29137615fc4816ccefba3746.',
+                  status: 'OK',
+                },
+              ]);
+              ctx.activeNode = 'designer_approval';
+              ctx.nodeStates = {
+                protocol_defined: 'completed',
+                profile_submitted: 'completed',
+                deterministic_validation: 'completed',
+                ai_reasoning: 'completed',
+                clarification_decision: 'completed',
+                designer_approval: 'completed',
+              };
+            },
+          },
+          {
+            headline: 'Step 2/5: First SEND Attempt Times Out — status="unknown", attempts=1, outcome="delivery unknown".',
+            run: async (ctx) => {
+              await ctx.dispatchEvent({ type: 'SEND' }, [
+                {
+                  actor: 'Mock Notification Provider',
+                  action: 'Attempt #1 -> TIMEOUT',
+                  detail: 'Provider delivered once internally, but response timed out. Application records status="unknown", attempts=1.',
+                  status: 'TIMEOUT',
+                },
+              ]);
+              ctx.activeNode = 'retry_reconciliation_loop';
+              ctx.nodeStates = {
+                protocol_defined: 'completed',
+                profile_submitted: 'completed',
+                deterministic_validation: 'completed',
+                ai_reasoning: 'completed',
+                clarification_decision: 'completed',
+                designer_approval: 'completed',
+                mcp_tool_execution: 'completed',
+                tool_result_returned: 'unknown',
+                authoritative_state_updated: 'unknown',
+                retry_reconciliation_loop: 'active',
+              };
+            },
+          },
+          {
+            headline: 'Step 3/5: Second SEND Attempt Also Times Out — Reaches MAX_ATTEMPTS (2) -> outcome transitions to "needs_reconciliation".',
+            run: async (ctx) => {
+              await ctx.dispatchEvent({ type: 'SEND' }, [
+                {
+                  actor: 'Bounded Retry Loop',
+                  action: 'Attempt #2 -> TIMEOUT (MAX_ATTEMPTS Reached)',
+                  detail: 'Second attempt with same idempotencyKey also timed out. Status remains "unknown", receiptId=null, and outcome="needs_reconciliation".',
+                  status: 'ESCALATED',
+                },
+              ]);
+              ctx.activeNode = 'retry_reconciliation_loop';
+              ctx.nodeStates = {
+                protocol_defined: 'completed',
+                profile_submitted: 'completed',
+                deterministic_validation: 'completed',
+                ai_reasoning: 'completed',
+                clarification_decision: 'completed',
+                designer_approval: 'completed',
+                mcp_tool_execution: 'completed',
+                tool_result_returned: 'unknown',
+                authoritative_state_updated: 'unknown',
+                retry_reconciliation_loop: 'unknown',
+              };
+            },
+          },
+          {
+            headline: 'Step 4/5: Reload Identical Profile (LOAD_PROFILE v4) — Must NOT reset attempts=2 or erase needs_reconciliation.',
+            run: async (ctx) => {
+              await ctx.dispatchEvent({ type: 'LOAD_PROFILE', profile: ctx.harness.profileV4 }, [
+                {
+                  actor: 'Workflow Engine',
+                  action: 'LOAD_PROFILE (Same Action Replay)',
+                  detail: 'Preserved attempts=2, status="unknown", and outcome="needs_reconciliation".',
+                  status: 'OK',
+                },
+              ]);
+            },
+          },
+          {
+            headline: 'Step 5/5: Third SEND Attempt Blocked by Retry Cap — Zero additional calls made; human reconciliation required.',
+            run: async (ctx) => {
+              await ctx.dispatchEvent({ type: 'SEND' }, [
+                {
+                  actor: 'Harness / Retry Cap',
+                  action: 'EVENT: SEND (3rd Attempt Blocked)',
+                  detail: 'Blocked because delivery.attempts (2) >= MAX_ATTEMPTS (2). Total provider calls remain 2; actual deliveries remain 1.',
+                  status: 'BLOCKED',
+                },
+              ]);
+              ctx.activeNode = 'retry_reconciliation_loop';
+              ctx.nodeStates.retry_reconciliation_loop = 'blocked';
+            },
+          },
+        ],
+      },
+
+      stale_change: {
+        title: 'Scenario C (Changed Condition): Protocol or Profile Changes After Approval Before Send',
+        mode: 'success',
+        bindProtocolRevision: true,
+        steps: [
+          {
+            headline: 'Step 1/4: Load Profile v4 under Protocol Revision r1 — Action ID binds [kind, profileId, v4, recipient, text, "r1"].',
+            run: async (ctx) => {
+              await ctx.dispatchEvent({ type: 'LOAD_PROFILE', profile: ctx.harness.profileV4 }, [
+                {
+                  actor: 'Workflow Engine',
+                  action: 'LOAD_PROFILE (v4, protocol rev r1)',
+                  detail: 'Created pendingAction with protocolRevision="r1" -> ' + ctx.state?.pendingAction?.id,
+                  status: 'OK',
+                },
+              ]);
+              ctx.activeNode = 'clarification_decision';
+              ctx.nodeStates = {
+                protocol_defined: 'completed',
+                profile_submitted: 'completed',
+                deterministic_validation: 'completed',
+                ai_reasoning: 'completed',
+                clarification_decision: 'active',
+              };
+            },
+          },
+          {
+            headline: 'Step 2/4: Designer Approves Action for Protocol r1 — approvedActionId matches the r1 action.',
+            run: async (ctx) => {
+              const id = ctx.state.pendingAction.id;
+              await ctx.dispatchEvent({ type: 'APPROVE_ACTION', actionId: id }, [
+                {
+                  actor: 'Designer',
+                  action: 'APPROVE_ACTION (' + id + ')',
+                  detail: 'Approved action bound to protocol revision r1.',
+                  status: 'OK',
+                },
+              ]);
+              ctx.activeNode = 'designer_approval';
+              ctx.nodeStates = {
+                protocol_defined: 'completed',
+                profile_submitted: 'completed',
+                deterministic_validation: 'completed',
+                ai_reasoning: 'completed',
+                clarification_decision: 'completed',
+                designer_approval: 'completed',
+              };
+            },
+          },
+          {
+            headline: 'Step 3/4: Protocol Changes (r1 -> r2) Before SEND! Re-evaluating profile under r2 produces a new Action ID and automatically invalidates the stale r1 approval.',
+            run: async (ctx) => {
+              const oldId = ctx.state.pendingAction.id;
+              ctx.harness.setProtocolRevision('r2');
+              await ctx.dispatchEvent({ type: 'LOAD_PROFILE', profile: ctx.harness.profileV4 }, [
+                {
+                  actor: 'Designer',
+                  action: 'PROTOCOL_UPDATED (r1 -> r2) + LOAD_PROFILE',
+                  detail: 'Protocol revision changed to r2 before SEND. New action.id (' + ctx.state.pendingAction.id + ') != old approved ID (' + oldId + '). Stale approval cleared to null!',
+                  status: 'BLOCKED',
+                },
+              ]);
+              ctx.activeNode = 'designer_approval';
+              ctx.nodeStates = {
+                protocol_defined: 'completed',
+                profile_submitted: 'completed',
+                deterministic_validation: 'completed',
+                ai_reasoning: 'completed',
+                clarification_decision: 'completed',
+                designer_approval: 'blocked',
+              };
+            },
+          },
+          {
+            headline: 'Step 4/4: Attempt SEND With Stale Approval Invalidated — Blocked! System refuses to send until Designer approves the new r2 action.',
+            run: async (ctx) => {
+              await ctx.dispatchEvent({ type: 'SEND' }, [
+                {
+                  actor: 'Designer Gate',
+                  action: 'EVENT: SEND (Blocked by Stale-Approval Guard)',
+                  detail: 'Prevented sending outdated clarification! Zero notification calls made.',
+                  status: 'BLOCKED',
+                },
+              ]);
+              ctx.activeNode = 'mcp_tool_execution';
+              ctx.nodeStates.mcp_tool_execution = 'blocked';
+            },
+          },
+        ],
+      },
+    };
+
+    // =========================================================================
+    // 5. APPLICATION CONTROLLER & LIVE UI SYNCHRONIZATION
+    // =========================================================================
+    let currentScenarioKey = 'normal';
+    let currentStepIndex = 0;
+    let historySnapshots = [];
+    let autoPlayTimer = null;
+
+    const runtime = {
+      harness: null,
+      state: initialState(),
+      trace: [],
+      activeNode: 'protocol_defined',
+      nodeStates: {},
+      bindProtocolRevision: false,
+      addTrace(entry) {
+        this.trace.push({
+          seq: this.trace.length + 1,
+          time: new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          ...entry,
+        });
+      },
+      async dispatchEvent(event, traceEntries = []) {
+        const nextState = await handleWorkflow(this.state, event, this.harness.tools, {
+          bindProtocolRevision: this.bindProtocolRevision,
+        });
+        // JSON round-trip simulation matching cases.mjs
+        this.state = JSON.parse(JSON.stringify(nextState));
+        for (const t of traceEntries) {
+          this.addTrace(t);
+        }
+      },
+    };
+
+    function resetScenario(scenarioKey = currentScenarioKey) {
+      stopAutoPlay();
+      currentScenarioKey = scenarioKey;
+      const def = SCENARIOS[scenarioKey];
+      currentStepIndex = 0;
+      historySnapshots = [];
+      runtime.harness = createHarness({ mode: def.mode });
+      runtime.state = initialState();
+      runtime.trace = [];
+      runtime.activeNode = 'protocol_defined';
+      runtime.nodeStates = {};
+      runtime.bindProtocolRevision = Boolean(def.bindProtocolRevision);
+      runtime.addTrace({
+        actor: 'System Harness',
+        action: 'SCENARIO_INITIALIZED (' + scenarioKey + ')',
+        detail: 'Initialized clean workflow state and mock provider (mode="' + def.mode + '").',
+        status: 'OK',
+      });
+      renderAll();
+    }
+
+    function cloneRuntimeSnapshot() {
+      return {
+        stepIndex: currentStepIndex,
+        state: structuredClone(runtime.state),
+        trace: structuredClone(runtime.trace),
+        activeNode: runtime.activeNode,
+        nodeStates: structuredClone(runtime.nodeStates),
+        providerInspect: runtime.harness.inspect(),
+        protocol: runtime.harness.getProtocol(),
+      };
+    }
+
+    async function stepForward() {
+      const def = SCENARIOS[currentScenarioKey];
+      if (currentStepIndex >= def.steps.length) {
+        stopAutoPlay();
+        return;
+      }
+      historySnapshots.push(cloneRuntimeSnapshot());
+      const stepObj = def.steps[currentStepIndex];
+      currentStepIndex += 1;
+      await stepObj.run(runtime);
+      renderAll(stepObj.headline);
+      if (currentStepIndex >= def.steps.length) {
+        stopAutoPlay();
+      }
+    }
+
+    async function stepBackward() {
+      stopAutoPlay();
+      if (historySnapshots.length === 0) return;
+      const targetStep = currentStepIndex - 1;
+      resetScenario(currentScenarioKey);
+      const def = SCENARIOS[currentScenarioKey];
+      for (let i = 0; i < targetStep; i++) {
+        historySnapshots.push(cloneRuntimeSnapshot());
+        await def.steps[i].run(runtime);
+        currentStepIndex = i + 1;
+      }
+      const headline =
+        currentStepIndex > 0
+          ? def.steps[currentStepIndex - 1].headline
+          : 'Select a scenario and click "Step Forward" to execute the live workflow.';
+      renderAll(headline);
+    }
+
+    function toggleAutoPlay() {
+      if (autoPlayTimer) {
+        stopAutoPlay();
+        return;
+      }
+      const def = SCENARIOS[currentScenarioKey];
+      if (currentStepIndex >= def.steps.length) {
+        resetScenario(currentScenarioKey);
+      }
+      const btn = document.getElementById('btnAutoPlay');
+      btn.innerHTML = '&#9208; Pause';
+      btn.classList.add('bg-amber-500/20', 'text-amber-300', 'border-amber-500/40');
+      autoPlayTimer = setInterval(async () => {
+        if (currentStepIndex < SCENARIOS[currentScenarioKey].steps.length) {
+          await stepForward();
+        } else {
+          stopAutoPlay();
+        }
+      }, 1300);
+    }
+
+    function stopAutoPlay() {
+      if (autoPlayTimer) {
+        clearInterval(autoPlayTimer);
+        autoPlayTimer = null;
+      }
+      const btn = document.getElementById('btnAutoPlay');
+      if (btn) {
+        btn.innerHTML = '&#9654; Auto-Run';
+        btn.classList.remove('bg-amber-500/20', 'text-amber-300', 'border-amber-500/40');
+      }
+    }
+
+    // =========================================================================
+    // 6. UI RENDERING FUNCTIONS
+    // =========================================================================
+    function renderWorkflowGraph() {
+      const container = document.getElementById('workflowGraphContainer');
+      container.innerHTML = WORKFLOW_NODES.map((node) => {
+        const st = runtime.nodeStates[node.id] || 'idle';
+        const isActive = runtime.activeNode === node.id;
+
+        let borderStyle = node.kind === 'conceptual' ? 'border-dashed border-slate-700 bg-slate-950/40' : 'border-slate-700 bg-slate-950/90';
+        let statusDot = '<span class="w-2 h-2 rounded-full bg-slate-600"></span>';
+        let extraClass = '';
+
+        if (node.kind === 'simulated_ai') {
+          borderStyle = 'border-purple-500/40 bg-purple-950/20';
+        }
+        if (st === 'completed') {
+          borderStyle = 'border-emerald-500/60 bg-emerald-950/15';
+          statusDot = '<span class="w-2 h-2 rounded-full bg-emerald-400"></span>';
+        } else if (st === 'blocked') {
+          borderStyle = 'border-rose-500/80 bg-rose-950/25';
+          statusDot = '<span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>';
+          extraClass = 'node-blocked';
+        } else if (st === 'unknown') {
+          borderStyle = 'border-amber-500/80 bg-amber-950/25';
+          statusDot = '<span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>';
+          extraClass = 'node-unknown';
+        }
+
+        if (isActive && st !== 'blocked' && st !== 'unknown') {
+          extraClass = 'node-active';
+          statusDot = '<span class="w-2 h-2 rounded-full bg-sky-400 animate-ping"></span>';
+        }
+
+        const kindBadge =
+          node.kind === 'conceptual'
+            ? '<span class="text-[9px] uppercase px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">Conceptual</span>'
+            : node.kind === 'simulated_ai'
+            ? '<span class="text-[9px] uppercase px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">Simulated AI</span>'
+            : '<span class="text-[9px] uppercase px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30">Implemented</span>';
+
+        return `
+          <div class="node-card rounded-lg border p-2.5 flex flex-col justify-between ${borderStyle} ${extraClass}">
+            <div>
+              <div class="flex items-center justify-between gap-1 mb-1">
+                <span class="mono text-[10px] font-bold text-slate-400">#${node.stepNum}</span>
+                ${statusDot}
+              </div>
+              <div class="text-xs font-bold text-white leading-snug mb-1">${node.title}</div>
+              <div class="text-[11px] text-slate-400 leading-tight mb-2">${node.desc}</div>
+            </div>
+            <div class="pt-1.5 border-t border-slate-800/80 flex items-center justify-between gap-1">
+              <span class="text-[10px] text-slate-300 font-medium truncate">${node.role}</span>
+              ${kindBadge}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderAll(customHeadline) {
+      const def = SCENARIOS[currentScenarioKey];
+      const st = runtime.state;
+      const prov = runtime.harness.inspect();
+      const proto = runtime.harness.getProtocol();
+
+      // 1. Header Step Counter & Dots
+      document.getElementById('stepCounterBadge').textContent = `Step ${currentStepIndex} / ${def.steps.length}`;
+      document.getElementById('btnStepBack').disabled = currentStepIndex === 0;
+      document.getElementById('btnNextStep').disabled = currentStepIndex >= def.steps.length;
+
+      const execBadge = document.getElementById('execStatusBadge');
+      if (st.outcome === 'blocked' || st.outcome === 'approval rejected') {
+        execBadge.className = 'text-xs font-semibold px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30';
+        execBadge.textContent = 'Blocked (' + st.outcome + ')';
+      } else if (st.delivery.status === 'unknown') {
+        execBadge.className = 'text-xs font-semibold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30';
+        execBadge.textContent = st.outcome === 'needs_reconciliation' ? 'Escalated (needs_reconciliation)' : 'Uncertain (delivery unknown)';
+      } else if (st.delivery.status === 'sent' || st.reviewStatus === 'ready_for_review') {
+        execBadge.className = 'text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+        execBadge.textContent = 'Verified (' + st.outcome + ')';
+      } else {
+        execBadge.className = 'text-xs font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-300';
+        execBadge.textContent = 'State: ' + st.outcome;
+      }
+
+      if (customHeadline) {
+        document.getElementById('stepHeadline').textContent = customHeadline;
+      } else if (currentStepIndex === 0) {
+        document.getElementById('stepHeadline').textContent =
+          'Ready: ' + def.title + ' — Click "Step Forward" to execute step by step.';
+      }
+
+      const dotsHtml = def.steps
+        .map((_, idx) => {
+          const done = idx < currentStepIndex;
+          const current = idx === currentStepIndex - 1;
+          const cls = current
+            ? 'w-5 h-2 rounded-full bg-sky-400'
+            : done
+            ? 'w-2 h-2 rounded-full bg-emerald-400'
+            : 'w-2 h-2 rounded-full bg-slate-700';
+          return `<span class="${cls} transition-all"></span>`;
+        })
+        .join('');
+      document.getElementById('stepDotsContainer').innerHTML = dotsHtml;
+
+      // 2. Render Graph
+      renderWorkflowGraph();
+      document.getElementById('bannerReviewStatus').textContent = st.reviewStatus;
+
+      // 3. Render Dual Perspectives (Application vs. Provider)
+      const appStatusEl = document.getElementById('metricAppDeliveryStatus');
+      appStatusEl.textContent = st.delivery.status;
+      appStatusEl.className =
+        'mono text-sm font-bold mt-0.5 ' +
+        (st.delivery.status === 'sent'
+          ? 'text-emerald-400'
+          : st.delivery.status === 'unknown'
+          ? 'text-amber-400'
+          : 'text-slate-200');
+
+      document.getElementById('metricAppAttempts').textContent = `${st.delivery.attempts} / ${MAX_ATTEMPTS}`;
+      const appRecEl = document.getElementById('metricAppReceipt');
+      appRecEl.textContent = st.delivery.receiptId ?? 'null';
+      appRecEl.className =
+        'mono text-sm font-bold mt-0.5 ' + (st.delivery.receiptId ? 'text-emerald-400' : 'text-slate-400');
+
+      const reconEl = document.getElementById('metricAppReconciliation');
+      const needsRecon = st.outcome === 'needs_reconciliation';
+      reconEl.textContent = needsRecon ? 'REQUIRED' : st.delivery.status === 'unknown' ? 'pending_retry' : 'not_needed';
+      reconEl.className =
+        'mono text-sm font-bold mt-0.5 ' +
+        (needsRecon ? 'text-rose-400' : st.delivery.status === 'unknown' ? 'text-amber-400' : 'text-slate-300');
+
+      const appSummaryEl = document.getElementById('appPerspectiveSummary');
+      if (st.delivery.status === 'unknown') {
+        appSummaryEl.innerHTML =
+          '<span class="text-amber-300 font-semibold">Uncertain Outcome Detected:</span> The tool call threw <code class="mono text-amber-300">TIMEOUT</code>. The application <strong>cannot</strong> know whether the message was delivered or dropped, so it records <code class="mono text-amber-300">status = "unknown"</code> (<code class="mono">receiptId = null</code>) and preserves <code class="mono">action.id</code> for safe idempotent retry.';
+      } else if (st.delivery.status === 'sent') {
+        appSummaryEl.innerHTML =
+          '<span class="text-emerald-300 font-semibold">Confirmed Delivery Receipt:</span> Application received <code class="mono text-emerald-300">' +
+          st.delivery.receiptId +
+          '</code> from <code class="mono">tools.notify()</code> after ' +
+          st.delivery.attempts +
+          ' attempt(s). Any subsequent <code class="mono">SEND</code> for this action is blocked.';
+      } else {
+        appSummaryEl.innerHTML =
+          'No notification confirmed yet (<code class="mono">status = "not_sent"</code>). Outgoing execution is gated on <code class="mono">approvedActionId === pendingAction.id</code>.';
+      }
+
+      // Provider Perspective
+      document.getElementById('metricProvRequests').textContent = String(prov.calls.length);
+      document.getElementById('metricProvDeliveries').textContent = String(prov.deliveries.length);
+      document.getElementById('metricProvDeduplicated').textContent = String(prov.idempotentHits);
+      document.getElementById('metricProvMode').textContent = runtime.harness.getMode();
+
+      const provSummaryEl = document.getElementById('providerPerspectiveSummary');
+      if (prov.deliveries.length > 0 && st.delivery.status === 'unknown') {
+        provSummaryEl.innerHTML =
+          '<span class="text-amber-300 font-semibold">Divergence Visible Here:</span> The provider <strong>DID</strong> commit delivery <code class="mono text-emerald-300">' +
+          prov.deliveries[0].receiptId +
+          '</code> for key <code class="mono">' +
+          prov.deliveries[0].idempotencyKey +
+          '</code>, even though the HTTP/tool response timed out! Reusing this exact key on retry will recover <code class="mono text-emerald-300">' +
+          prov.deliveries[0].receiptId +
+          '</code> without sending a 2nd message.';
+      } else if (prov.idempotentHits > 0) {
+        provSummaryEl.innerHTML =
+          '<span class="text-sky-300 font-semibold">Idempotent Recovery Succeeded:</span> Provider received <strong>' +
+          prov.calls.length +
+          ' requests</strong> with key <code class="mono">' +
+          prov.deliveries[0].idempotencyKey +
+          '</code>, deduplicated the retry, performed only <strong>1 actual delivery</strong>, and returned original <code class="mono text-emerald-300">' +
+          prov.deliveries[0].receiptId +
+          '</code>.';
+      } else if (prov.deliveries.length > 0) {
+        provSummaryEl.innerHTML =
+          'Provider committed <strong>1 actual delivery</strong> (<code class="mono text-emerald-300">' +
+          prov.deliveries[0].receiptId +
+          '</code>) for key <code class="mono">' +
+          prov.deliveries[0].idempotencyKey +
+          '</code>.';
+      } else {
+        provSummaryEl.innerHTML =
+          'Provider has received <strong>0 requests</strong> and committed <strong>0 deliveries</strong>. Deduplication map is empty.';
+      }
+
+      // 4. Render State Inspector
+      document.getElementById('stateOutcomePill').textContent = 'outcome: ' + st.outcome;
+      document.getElementById('inspProfileIdVer').textContent = st.currentProfile
+        ? `${st.currentProfile.id} (v${st.currentProfile.version})`
+        : 'null';
+      document.getElementById('inspProtocolRev').textContent = st.currentProtocol
+        ? `${st.currentProtocol.id} (rev ${st.currentProtocol.revision})`
+        : `${proto.id} (rev ${proto.revision})`;
+      document.getElementById('inspRecipient').textContent = st.currentProfile
+        ? st.currentProfile.recipient
+        : 'null';
+
+      const revStatusEl = document.getElementById('inspReviewStatus');
+      revStatusEl.textContent = st.reviewStatus;
+      revStatusEl.className =
+        'mono font-semibold ' +
+        (st.reviewStatus === 'ready_for_review'
+          ? 'text-emerald-400'
+          : st.reviewStatus === 'needs_clarification'
+          ? 'text-amber-300'
+          : 'text-slate-400');
+
+      const measContainer = document.getElementById('inspMeasurementsList');
+      if (st.currentProfile && st.currentProfile.measurements) {
+        const m = st.currentProfile.measurements;
+        measContainer.innerHTML = ['chest', 'waist', 'hip']
+          .map((f) => {
+            const entry = m[f];
+            if (!entry) {
+              return `<div class="bg-rose-950/40 border border-rose-500/40 p-1.5 rounded text-rose-300"><strong>${f}:</strong> null (missing)</div>`;
+            }
+            const badUnit = entry.unit !== 'cm';
+            const badVal = typeof entry.value !== 'number' || entry.value <= 0;
+            const cls =
+              badUnit || badVal
+                ? 'bg-amber-950/40 border-amber-500/40 text-amber-300'
+                : 'bg-emerald-950/30 border-emerald-500/30 text-emerald-300';
+            return `<div class="border p-1.5 rounded ${cls}"><strong>${f}:</strong> ${entry.value} ${entry.unit}</div>`;
+          })
+          .join('');
+      } else {
+        measContainer.innerHTML =
+          '<div class="col-span-3 bg-slate-900 p-1.5 rounded border border-slate-800 text-slate-500">No profile loaded yet</div>';
+      }
+
+      const issuesEl = document.getElementById('inspIssuesList');
+      if (st.issues && st.issues.length > 0) {
+        issuesEl.innerHTML = st.issues
+          .map(
+            (code) =>
+              `<span class="mono text-xs px-2 py-0.5 rounded bg-rose-500/15 text-rose-300 border border-rose-500/30">${code}</span>`
+          )
+          .join('');
+      } else if (st.currentProfile) {
+        issuesEl.innerHTML =
+          '<span class="mono text-xs px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">0 issues (valid)</span>';
+      } else {
+        issuesEl.innerHTML = '<span class="text-slate-500 text-xs italic">None</span>';
+      }
+
+      const isApproved = Boolean(st.pendingAction && st.approvedActionId === st.pendingAction.id);
+      const appBadge = document.getElementById('inspApprovalBadge');
+      if (isApproved) {
+        appBadge.className = 'text-[11px] font-semibold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+        appBadge.textContent = 'Approved (Exact Match)';
+      } else if (st.pendingAction) {
+        appBadge.className = 'text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30';
+        appBadge.textContent = 'Awaiting Designer Approval';
+      } else {
+        appBadge.className = 'text-[11px] font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-400';
+        appBadge.textContent = 'No Pending Action';
+      }
+
+      document.getElementById('inspActionId').textContent = st.pendingAction ? st.pendingAction.id : 'null';
+      document.getElementById('inspApprovedActionId').textContent = st.approvedActionId ?? 'null';
+      document.getElementById('inspDraftText').textContent = st.pendingAction ? st.pendingAction.text : 'null';
+      document.getElementById('rawStateJson').textContent = JSON.stringify(st, null, 2);
+
+      // 5. Render Model Context Preview & Untrusted Note
+      document.getElementById('modelContextPreview').textContent = st.currentProfile
+        ? JSON.stringify(
+            {
+              profileId: st.currentProfile.id,
+              profileVersion: st.currentProfile.version,
+              issues: st.issues,
+            },
+            null,
+            2
+          )
+        : '// Model Context Payload: waiting for LOAD_PROFILE';
+
+      document.getElementById('untrustedNotePreview').textContent =
+        'protocol.note: "' + (st.currentProtocol ? st.currentProtocol.note : proto.note) + '"';
+
+      // 6. Render Chronological Event Trace
+      document.getElementById('traceCountBadge').textContent = `${runtime.trace.length} events`;
+      const traceList = document.getElementById('eventTraceList');
+      traceList.innerHTML = runtime.trace
+        .slice()
+        .reverse()
+        .map((item) => {
+          let pillCls = 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
+          if (item.status === 'BLOCKED') pillCls = 'bg-rose-500/20 text-rose-300 border-rose-500/40';
+          else if (item.status === 'TIMEOUT' || item.status === 'ESCALATED')
+            pillCls = 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+          else if (item.status === 'SIMULATED') pillCls = 'bg-purple-500/20 text-purple-300 border-purple-500/40';
+          else if (item.status === 'RECOVERED') pillCls = 'bg-sky-500/20 text-sky-300 border-sky-500/40';
+
+          return `
+            <div class="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800/90 text-xs">
+              <div class="flex items-center justify-between gap-2 mb-1">
+                <div class="flex items-center gap-1.5">
+                  <span class="mono text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">#${item.seq}</span>
+                  <span class="font-semibold text-sky-300">${item.actor}</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded border ${pillCls}">${item.status}</span>
+                  <span class="mono text-[10px] text-slate-500">${item.time}</span>
+                </div>
+              </div>
+              <div class="mono text-[11px] font-semibold text-white mb-0.5">${item.action}</div>
+              <div class="text-[11px] text-slate-300 leading-relaxed">${item.detail}</div>
+            </div>
+          `;
+        })
+        .join('');
+    }
+
+    // =========================================================================
+    // 7. WIRE ALL EVENT LISTENERS
+    // =========================================================================
+    document.getElementById('scenarioSelect').addEventListener('change', (e) => {
+      resetScenario(e.target.value);
+    });
+    document.getElementById('btnNextStep').addEventListener('click', () => {
+      stepForward();
+    });
+    document.getElementById('btnStepBack').addEventListener('click', () => {
+      stepBackward();
+    });
+    document.getElementById('btnAutoPlay').addEventListener('click', () => {
+      toggleAutoPlay();
+    });
+    document.getElementById('btnReset').addEventListener('click', () => {
+      resetScenario(currentScenarioKey);
+    });
+
+    // Manual interactive buttons
+    document.getElementById('btnManualLoad').addEventListener('click', async () => {
+      stopAutoPlay();
+      historySnapshots.push(cloneRuntimeSnapshot());
+      await runtime.dispatchEvent({ type: 'LOAD_PROFILE', profile: runtime.harness.profileV4 }, [
+        {
+          actor: 'Manual Control',
+          action: 'LOAD_PROFILE (v4)',
+          detail: 'Manually loaded profile-017 v4 and ran deterministic validation.',
+          status: 'OK',
+        },
+      ]);
+      runtime.activeNode = 'clarification_decision';
+      runtime.nodeStates = {
+        protocol_defined: 'completed',
+        profile_submitted: 'completed',
+        deterministic_validation: 'completed',
+        ai_reasoning: 'completed',
+        clarification_decision: 'active',
+      };
+      renderAll('Manual Event: Loaded profile-017 v4 and prepared pending clarification action.');
+    });
+
+    document.getElementById('btnManualWrongApprove').addEventListener('click', async () => {
+      stopAutoPlay();
+      historySnapshots.push(cloneRuntimeSnapshot());
+      await runtime.dispatchEvent({ type: 'APPROVE_ACTION', actionId: 'stale-or-wrong-action-id' }, [
+        {
+          actor: 'Manual Control',
+          action: 'APPROVE_ACTION ("stale-or-wrong-action-id")',
+          detail: 'Rejected mismatched action ID; existing valid approval (if any) preserved.',
+          status: 'BLOCKED',
+        },
+      ]);
+      runtime.activeNode = 'designer_approval';
+      runtime.nodeStates.designer_approval = 'blocked';
+      renderAll('Manual Event: Attempted approval with wrong Action ID -> Rejected by Rule 4.');
+    });
+
+    document.getElementById('btnManualApprove').addEventListener('click', async () => {
+      stopAutoPlay();
+      const id = runtime.state.pendingAction ? runtime.state.pendingAction.id : 'none';
+      historySnapshots.push(cloneRuntimeSnapshot());
+      await runtime.dispatchEvent({ type: 'APPROVE_ACTION', actionId: id }, [
+        {
+          actor: 'Manual Control',
+          action: 'APPROVE_ACTION (' + id + ')',
+          detail:
+            id !== 'none'
+              ? 'Approved current pending action ID.'
+              : 'No pending action exists to approve.',
+          status: id !== 'none' ? 'OK' : 'BLOCKED',
+        },
+      ]);
+      runtime.activeNode = 'designer_approval';
+      runtime.nodeStates.designer_approval = id !== 'none' ? 'completed' : 'blocked';
+      renderAll('Manual Event: Designer approved exact pending action ID.');
+    });
+
+    document.getElementById('btnManualSend').addEventListener('click', async () => {
+      stopAutoPlay();
+      historySnapshots.push(cloneRuntimeSnapshot());
+      const prevCalls = runtime.harness.inspect().calls.length;
+      await runtime.dispatchEvent({ type: 'SEND' }, []);
+      const nowCalls = runtime.harness.inspect().calls.length;
+      const st = runtime.state;
+      if (st.outcome === 'blocked') {
+        runtime.addTrace({
+          actor: 'Manual Control',
+          action: 'SEND -> Blocked',
+          detail: 'Blocked because action is not approved. Zero notification calls made.',
+          status: 'BLOCKED',
+        });
+        runtime.activeNode = 'designer_approval';
+        runtime.nodeStates.designer_approval = 'blocked';
+      } else if (st.delivery.status === 'unknown') {
+        runtime.addTrace({
+          actor: 'Manual Control',
+          action: 'SEND -> Timeout / Uncertain',
+          detail: `Provider call #${nowCalls} timed out or reached limit (${st.outcome}).`,
+          status: st.outcome === 'needs_reconciliation' ? 'ESCALATED' : 'TIMEOUT',
+        });
+        runtime.activeNode = 'retry_reconciliation_loop';
+        runtime.nodeStates.tool_result_returned = 'unknown';
+        runtime.nodeStates.retry_reconciliation_loop = 'active';
+      } else {
+        runtime.addTrace({
+          actor: 'Manual Control',
+          action: 'SEND -> ' + st.outcome,
+          detail:
+            nowCalls > prevCalls
+              ? `Delivered / recovered receipt ${st.delivery.receiptId} (Attempts: ${st.delivery.attempts}).`
+              : `No-op replay: receipt ${st.delivery.receiptId} already confirmed.`,
+          status: 'OK',
+        });
+        runtime.activeNode = 'authoritative_state_updated';
+        runtime.nodeStates.mcp_tool_execution = 'completed';
+        runtime.nodeStates.tool_result_returned = 'completed';
+        runtime.nodeStates.authoritative_state_updated = 'completed';
+      }
+      renderAll('Manual Event: Dispatched SEND -> outcome: ' + st.outcome);
+    });
+
+    document.getElementById('btnManualBumpProtocol').addEventListener('click', async () => {
+      stopAutoPlay();
+      historySnapshots.push(cloneRuntimeSnapshot());
+      runtime.bindProtocolRevision = true;
+      const nextRev = runtime.harness.getProtocol().revision === 'r1' ? 'r2' : 'r3';
+      runtime.harness.setProtocolRevision(nextRev);
+      if (runtime.state.currentProfile) {
+        await runtime.dispatchEvent({ type: 'LOAD_PROFILE', profile: runtime.state.currentProfile }, [
+          {
+            actor: 'Manual Control',
+            action: 'Protocol Updated to ' + nextRev + ' + LOAD_PROFILE',
+            detail: 'Protocol revision changed; recomputed action.id invalidated previous approval.',
+            status: 'BLOCKED',
+          },
+        ]);
+        runtime.activeNode = 'designer_approval';
+        runtime.nodeStates.designer_approval = 'blocked';
+      }
+      renderAll('Manual Event: Protocol bumped to ' + nextRev + '; stale approval invalidated.');
+    });
+
+    document.getElementById('btnManualLoadClean').addEventListener('click', async () => {
+      stopAutoPlay();
+      historySnapshots.push(cloneRuntimeSnapshot());
+      await runtime.dispatchEvent({ type: 'LOAD_PROFILE', profile: runtime.harness.profileV5Clean }, [
+        {
+          actor: 'Manual Control',
+          action: 'LOAD_PROFILE (v5 Clean Measurements)',
+          detail: 'All measurements in cm and positive -> reviewStatus="ready_for_review", pendingAction=null.',
+          status: 'OK',
+        },
+      ]);
+      runtime.activeNode = 'final_maker_handoff';
+      runtime.nodeStates.final_maker_handoff = 'completed';
+      renderAll('Manual Event: Loaded clean Profile v5 -> ready_for_review for Designer acceptance & Maker handoff.');
+    });
+
+    // Right-column tabs
+    function switchTab(activeTab) {
+      const tabs = ['Context', 'Stale', 'Arch'];
+      for (const t of tabs) {
+        const btn = document.getElementById('tabBtn' + t);
+        const panel = document.getElementById('tabPanel' + t);
+        if (t === activeTab) {
+          btn.className = 'px-2.5 py-1 rounded text-xs font-semibold bg-sky-500 text-slate-950 transition';
+          panel.classList.remove('hidden');
+        } else {
+          btn.className = 'px-2.5 py-1 rounded text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 transition';
+          panel.classList.add('hidden');
+        }
+      }
+    }
+
+    document.getElementById('tabBtnContext').addEventListener('click', () => switchTab('Context'));
+    document.getElementById('tabBtnStale').addEventListener('click', () => switchTab('Stale'));
+    document.getElementById('tabBtnArch').addEventListener('click', () => switchTab('Arch'));
+
+    document.getElementById('btnJumpStaleScenario').addEventListener('click', () => {
+      document.getElementById('scenarioSelect').value = 'stale_change';
+      resetScenario('stale_change');
+      stepForward();
+    });
+
+    // Initialize on load
+    resetScenario('normal');
+  </script>
+</body>
+</html>

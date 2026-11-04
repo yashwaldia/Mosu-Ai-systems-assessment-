@@ -1,0 +1,6 @@
+{
+  "name": "MOSU Measurement Workflow Demonstrator",
+  "description": "Interactive visual demonstrator for remote custom fashion measurement validation, human-in-the-loop approval, and idempotent tool execution.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

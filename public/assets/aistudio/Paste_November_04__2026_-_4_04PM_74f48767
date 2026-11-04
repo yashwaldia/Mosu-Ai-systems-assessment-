@@ -1,0 +1,957 @@
+# MOSU AI SYSTEMS DEMONSTRATOR
+# COMPLETE PROJECT UNDERSTANDING, WORKFLOW REDESIGN & FUNCTIONAL UI IMPLEMENTATION
+
+## 1. YOUR ROLE
+
+Act as a Senior Product Designer, UX Architect, Frontend Engineer, Software Architect and AI Systems Engineer.
+
+You are working on an existing project called **MOSU AI Systems Demonstrator**.
+
+Your task is to thoroughly understand the business requirements, both assessment stages, the existing workflow implementation, and the current HTML application before redesigning and improving it.
+
+I am not asking for a new application built from scratch without considering the existing work.
+
+I want you to inherit the existing system, understand what has already been developed, preserve its important functionality, and transform its current presentation into a clean, intuitive and professionally designed interactive demonstrator.
+
+Think of this as a product demonstration that will be presented directly to the founder of MOSU.
+
+The founder should be able to open the application and understand the entire business journey, see how the system behaves, understand where humans intervene, and observe what happens when something goes wrong.
+
+The interface must be understandable to a non-technical business stakeholder while retaining enough technical depth for an experienced engineer to inspect the implementation.
+
+**Your priorities, in order:**
+
+1. Correct understanding of the business problem.
+2. Preservation of existing functionality and assessment requirements.
+3. Clear and intuitive workflow representation.
+4. Functional scenario execution.
+5. Professional visual design.
+6. Technical transparency and observability.
+
+Do not sacrifice functionality for appearance or appearance for unnecessary technical complexity.
+
+---
+
+# 2. SOURCE MATERIALS – READ EVERYTHING FIRST
+
+I am providing the following reference materials:
+
+1. MOSU Stage 1 assessment PDF.
+2. MOSU Stage 2 assessment PDF / detailed change requirements.
+3. Original Stage 1 GitHub repository.
+4. Existing Stage 2 HTML demonstrator.
+5. Supporting JavaScript files, JSON files, documentation, workflow notes and test results.
+
+GitHub repository:
+
+https://github.com/yashwaldia/Mosu-Ai-systems-assessment-
+
+You must inspect the uploaded materials and repository.
+
+Do not rely solely on this prompt.
+
+### Source-of-truth hierarchy
+
+Use the materials as follows:
+
+- Official assessment documents define the requirements.
+- Stage 1 source code and contract define the original workflow behaviour.
+- Stage 2 assessment requirements define the additional functionality and scenarios.
+- The existing HTML represents the current demonstrator that needs improvement.
+- This prompt defines the desired UX, information architecture and visual direction.
+
+If any two sources contradict each other, identify the contradiction and explain which requirement should take precedence.
+
+Do not silently discard functionality.
+
+Do not assume that an existing feature works just because it appears in the interface.
+
+Inspect its actual implementation.
+
+If you cannot access a repository file through its URL, use the uploaded copy. If a required file is missing or unreadable, tell me explicitly rather than pretending to have inspected it.
+
+---
+
+# 3. UNDERSTAND THE COMPLETE MOSU BUSINESS CONTEXT
+
+MOSU is being developed to help independent fashion designers serve customers remotely through a reliable measurement collection, review and handoff process.
+
+The workflow involves four main participants:
+
+**Customer**
+- Wants a garment made to their measurements.
+- May need to provide missing information or clarify measurements.
+
+**Designer**
+- Defines the measurement protocol.
+- Reviews submitted measurement information.
+- Approves specific clarification messages.
+- Eventually reviews and accepts the appropriate measurement profile.
+
+**Measurement Professional**
+- Captures measurements according to the designer's instructions.
+- Submits measurement profiles.
+- Provides corrections or additional information when requested.
+
+**Maker / Production Team**
+- Receives the specific measurement version accepted by the designer.
+
+MOSU coordinates the information, decisions and handoffs between these participants.
+
+The main business journey is:
+
+Designer defines measurement protocol
+→ Measurement professional submits profile
+→ System validates measurements
+→ Clarification is prepared if necessary
+→ Designer reviews and approves clarification
+→ Notification is sent
+→ Delivery is confirmed or reconciled
+→ Updated information is submitted
+→ Designer reviews the measurement profile
+→ Approved profile is handed to production.
+
+This is the overall business journey, not a claim that every stage must be implemented as a fully functioning production service.
+
+Make the distinction between implemented, simulated and conceptual stages clear.
+
+---
+
+# 4. UNDERSTAND BOTH ASSESSMENT STAGES
+
+## Stage 1 – Reliable workflow implementation
+
+The first assessment focused on reliable workflow execution.
+
+The original implementation used Node.js ES modules.
+
+Important files include:
+
+- workflow.mjs
+- contract.mjs
+- cases.mjs
+- mock-tools.mjs
+- observations.mjs
+- run.mjs
+- smoke.mjs
+- results.json
+- CONTRACT.md
+- GLOSSARY.md
+- README.md
+
+The original workflow entry point is:
+
+`handle(state, event, tools)`
+
+The first assessment was successfully completed. All six checks passed.
+
+You must inspect the actual implementation and preserve its behaviour.
+
+The critical existing functionality includes:
+
+### A. Profile version isolation
+
+A newer measurement profile must not inherit approval from an older profile version.
+
+### B. Deterministic validation
+
+The system checks:
+
+- Missing required measurements.
+- Invalid numeric values.
+- Non-finite values.
+- Zero or negative values.
+- Incorrect measurement units.
+
+Independent errors must be preserved.
+
+Missing measurements must not be invented.
+
+Incorrect units must not be silently converted.
+
+### C. Untrusted reference information
+
+Free-text protocol notes must not authorize sending, bypass validation or change the recipient.
+
+### D. Exact-action approval
+
+A designer must approve the specific clarification action identified by its action ID.
+
+Approval for another action must not authorize the current action.
+
+Sending without matching approval must be blocked.
+
+### E. Honest delivery status
+
+The workflow must distinguish:
+
+- Not sent.
+- Confirmed sent.
+- Unknown delivery outcome.
+- Needs reconciliation.
+
+A timeout does not prove that a notification was not delivered.
+
+### F. Idempotency and retries
+
+The same action must reuse its original idempotency key.
+
+The maximum number of attempts is two.
+
+A completed notification must not be delivered again.
+
+Two uncertain attempts must result in `needs_reconciliation`.
+
+### G. Same-action reload continuity
+
+Reloading an identical profile and recreating the same action must preserve its approval, delivery status, receipt and attempt history.
+
+A genuinely different action must require fresh approval.
+
+**These are established Stage 1 behaviours. Do not break them during the redesign.**
+
+## Stage 2 – Visual systems demonstrator
+
+The second assessment requires an interactive representation of the system.
+
+It introduces:
+
+- A connected workflow diagram.
+- Workflow state visibility.
+- Component and agent activity.
+- Model context and simulated reasoning.
+- Tool calls and responses.
+- Human approval.
+- Authoritative state versus memory.
+- Permissions and tool authorization.
+- Retries and idempotency.
+- Uncertain outcomes.
+- Human reconciliation.
+- Event traces and observability.
+- Scenario selection and execution controls.
+
+The actual implementation scope is intentionally small.
+
+A real AI model, live external API, production database, MCP server or deployment is not required.
+
+Use deterministic mock services where appropriate.
+
+---
+
+# 5. FIRST TASK – AUDIT THE EXISTING PROJECT
+
+Before redesigning anything, inspect all uploaded source files and the current HTML.
+
+Prepare an internal understanding of:
+
+1. What functionality already exists.
+2. Which components are implemented.
+3. Which components are simulated.
+4. Which parts of the workflow are conceptual.
+5. How the current scenario execution works.
+6. How the application represents states and transitions.
+7. How approvals are enforced.
+8. How notification attempts and provider responses work.
+9. How retries and reconciliation work.
+10. How the protocol revision change is represented.
+11. Which controls are functional.
+12. Which controls are merely visual.
+13. Which parts of the current design make the system difficult to understand.
+
+Pay particular attention to whether the HTML uses a separate embedded workflow implementation or actually shares the original Node.js workflow engine.
+
+Do not falsely describe two independent implementations as one shared execution engine.
+
+Identify any mismatches between the original implementation and the HTML demonstrator.
+
+### Important technical verification
+
+Verify:
+
+- Actual action ID generation.
+- Whether SHA-256 is genuinely implemented.
+- Whether protocol revision participates in action identity where required by Stage 2.
+- Whether old approval is invalidated after relevant profile/protocol changes.
+- Whether retries use the same action identity and payload.
+- Whether event logs reflect actual execution.
+- Whether provider-side and application-side states are separated.
+- Whether reset restores all relevant mock-service state.
+- Whether completed actions can accidentally execute again.
+- Whether the production handoff is incorrectly marked complete.
+
+The initial Stage 1 contract did not include protocol changes, but Stage 2 introduces this additional requirement. Treat it as an explicit extension rather than assuming it was already part of the original implementation.
+
+After reviewing everything, give me a short summary of the existing architecture and the proposed redesign.
+
+Then continue with implementation. Do not stop after presenting a plan unless a genuinely missing file or blocking technical issue requires clarification.
+
+---
+
+# 6. MAIN OBJECTIVE – SIMPLIFY THE WORKFLOW FOR THE CLIENT
+
+The existing workflow representation is too niche, cluttered and difficult to understand.
+
+I want a completely reconsidered information architecture.
+
+The most important principle is:
+
+**Show the business journey first. Reveal the technical implementation only when the user wants to inspect it.**
+
+Do not display every internal event, agent, tool and retry as an equally important stage in the primary diagram.
+
+A non-technical person should not have to understand state machines, idempotency keys or tool adapters just to understand what is happening.
+
+### Proposed primary business journey
+
+Use the following as a starting point:
+
+1. Measurement Submitted.
+2. Measurement Validation.
+3. Clarification Prepared.
+4. Designer Review and Approval.
+5. Notification Delivery.
+6. Delivery Confirmation / Recovery.
+7. Measurement Review and Handoff.
+
+You may improve the labels and grouping after inspecting the requirements.
+
+However:
+
+- Do not change the actual workflow logic.
+- Do not merge separate approval decisions.
+- Do not hide important failure scenarios.
+- Do not mark conceptual stages as implemented.
+- Do not show production handoff as complete merely because validation passed.
+
+### Two levels of understanding
+
+**Level 1 – Business view**
+
+Show the simplified journey, the current stage, what has happened and what needs to happen next.
+
+**Level 2 – Technical view**
+
+Expose the detailed execution information, including:
+
+- Internal states.
+- Actions and events.
+- Validation results.
+- Model inputs.
+- Tool calls.
+- Tool responses.
+- Approval IDs.
+- Idempotency keys.
+- Retry attempts.
+- Provider state.
+- Event history.
+- Authoritative state.
+
+Make this information accessible without overwhelming the main interface.
+
+---
+
+# 7. PROPOSED APPLICATION INFORMATION ARCHITECTURE
+
+Build a cohesive application with a clear visual hierarchy.
+
+## A. Application header
+
+Include:
+
+- MOSU branding or a clean text-based MOSU identity.
+- Title: Measurement Workflow Demonstrator.
+- Short subtitle explaining its purpose.
+- Scenario indicator.
+- Current execution status.
+
+Keep the header compact and professional.
+
+Do not create an oversized landing page.
+
+## B. Main business workflow
+
+This should be the most prominent component.
+
+Represent the overall journey as connected stages.
+
+For every stage, show:
+
+- Stage name.
+- Short business explanation.
+- Current status.
+- Whether it is automatic, human-controlled or simulated.
+- Whether it has been completed, is active, is waiting or is blocked.
+
+Use a clear visual progression.
+
+On desktop, prefer a readable horizontal or structured flow.
+
+On smaller screens, use a vertical connected flow.
+
+Do not cram every internal technical operation into the nodes.
+
+## C. Active stage details
+
+When a user selects a stage, open a dedicated details panel or expandable section.
+
+Explain:
+
+1. What is happening?
+2. Why is it happening?
+3. What information is being used?
+4. Which component is responsible?
+5. What decision is required?
+6. What is the expected next step?
+7. What happens if this stage fails?
+
+Present business-friendly explanations first.
+
+Technical details should be secondary.
+
+## D. Scenario execution panel
+
+Keep the execution controls easy to find.
+
+Include:
+
+- Scenario selector.
+- Start or Run.
+- Step Forward.
+- Previous Step, if reliable.
+- Auto-Run / Pause.
+- Reset.
+
+Clearly show the current step.
+
+These controls must drive actual workflow execution.
+
+If Previous Step is implemented, it must restore state and provider context consistently. Do not implement misleading visual-only rewind functionality.
+
+## E. State inspector
+
+Show important workflow information in readable sections.
+
+**Profile**
+- Profile ID.
+- Profile version.
+- Protocol ID.
+- Protocol revision.
+
+**Measurements**
+- Measurement name.
+- Value.
+- Unit.
+- Validation status.
+
+**Validation**
+- Issues found.
+- Review status.
+
+**Clarification**
+- Action type.
+- Recipient.
+- Message.
+- Action ID.
+
+**Approval**
+- Approval status.
+- Approved action ID.
+- Whether approval matches the current action.
+
+**Delivery**
+- Delivery status.
+- Attempt count.
+- Receipt ID.
+- Reconciliation status.
+
+Provide a collapsible raw JSON view for technical inspection.
+
+## F. Event timeline
+
+Provide a chronological execution trace.
+
+Show:
+
+- What happened.
+- Which component performed it.
+- What input was used.
+- What output was returned.
+- What state changed.
+- Whether it succeeded, was blocked or became uncertain.
+
+Use simple human-readable descriptions with technical event names available where appropriate.
+
+The event trace must reflect actual execution.
+
+## G. Debug / technical inspection
+
+Provide an optional technical view containing:
+
+- Current workflow JSON.
+- Action ID.
+- Protocol revision.
+- Idempotency key.
+- Request count.
+- Provider execution count.
+- Actual delivery count.
+- Provider receipt.
+- Application delivery status.
+- Retry history.
+- Event history.
+
+Keep this view separate from the default business-facing interface.
+
+---
+
+# 8. REQUIRED SCENARIOS
+
+The existing assessment scenarios must remain available and understandable.
+
+## Scenario A – Normal clarification workflow
+
+Demonstrate:
+
+1. A fictional measurement profile is loaded.
+2. The profile contains a missing required measurement.
+3. Deterministic validation executes.
+4. The missing measurement is identified.
+5. A simulated AI component prepares a clarification suggestion.
+6. The system creates a specific clarification action.
+7. The notification action is attempted before approval.
+8. The system blocks the unapproved action.
+9. The reason for the block is shown.
+10. The designer approves the exact action.
+11. The notification tool executes.
+12. The provider returns a receipt.
+13. The application records confirmed delivery.
+14. Replaying SEND does not produce another delivery.
+
+The interface must make one distinction extremely clear:
+
+**Approval to send a clarification message is not approval of the measurement profile.**
+
+After the clarification is sent, the workflow should remain waiting for the requested information.
+
+It must not automatically advance to production.
+
+## Scenario B – Provider delivers, but the response times out
+
+Demonstrate:
+
+1. The exact clarification action is approved.
+2. The mock provider receives the notification request.
+3. The provider successfully delivers the notification.
+4. The provider response times out or is lost.
+5. The application records the outcome as unknown.
+6. The application does not claim confirmed success or confirmed failure.
+7. A permitted retry uses the same action ID and idempotency key.
+8. The provider recognizes the duplicate request.
+9. The original receipt is returned.
+10. The application records confirmed delivery.
+11. Actual delivery count remains one.
+
+Show these counts separately:
+
+- Notification requests.
+- Provider executions or attempts.
+- Actual deliveries.
+- Recovered receipts.
+
+### Always-timeout variant
+
+If supported by the existing implementation, retain the scenario where both permitted attempts remain uncertain.
+
+Expected result:
+
+- Two attempts.
+- Maximum attempt limit reached.
+- No third attempt.
+- Delivery remains unknown.
+- Outcome becomes `needs_reconciliation`.
+
+### Provider versus application knowledge
+
+This is a particularly important part of the demonstration.
+
+After the first timeout:
+
+**Provider knows:** The notification was delivered.
+
+**Application knows:** The request timed out and no receipt was received.
+
+The interface must not give the application access to hidden provider knowledge as if it had received a response.
+
+A provider-side debug panel may expose internal simulated state, but it must be clearly labelled as provider-side information.
+
+## Scenario C – Protocol changes after approval
+
+Preserve the existing protocol revision scenario if it is present in the uploaded implementation.
+
+Demonstrate:
+
+1. Profile is loaded using protocol revision r1.
+2. Clarification action is created.
+3. Designer approves the action.
+4. Protocol changes to revision r2.
+5. The existing action becomes stale.
+6. The new action identity reflects the relevant revision.
+7. The old approval cannot authorize the new action.
+8. Sending remains blocked until the new action is approved.
+
+If the supplied implementation does not already provide an interactive version of this scenario, do not expand the scope unnecessarily.
+
+The Stage 2 email explicitly allows this changed condition to be explained without implementing another complete scenario.
+
+At minimum, provide a clear visual explanation and document the safety behaviour.
+
+---
+
+# 9. HOW TO REPRESENT THE UNDERLYING AI SYSTEM
+
+The founder wants to understand how a complex AI-assisted system operates.
+
+The application should make these architectural concepts understandable without turning the main workflow into a technical maze.
+
+Use a secondary architecture/inspection view or contextual details.
+
+### A. Deterministic versus AI-driven behaviour
+
+Clearly differentiate:
+
+**Deterministic**
+- Measurement validation.
+- State transitions.
+- Permission checks.
+- Approval enforcement.
+- Action identity.
+- Retry limits.
+- Idempotency.
+- Reconciliation conditions.
+
+**AI-assisted or simulated**
+- Preparing a clarification suggestion.
+- Explaining validation issues.
+- Preparing contextual summaries.
+
+AI must not invent measurements, approve actions or override deterministic rules.
+
+### B. Agent loops and graph states
+
+Explain the workflow graph, transitions and controlled repetition.
+
+Show where an execution loop occurs, what permits it and what stops it.
+
+Do not invent multiple autonomous agents if the existing implementation only has deterministic components and simulated AI behaviour.
+
+### C. Model context
+
+Show the information a hypothetical model component receives, such as:
+
+- Profile ID and version.
+- Validation issues.
+- Relevant protocol information.
+- Relevant context.
+
+Clearly distinguish model input from authoritative application state.
+
+### D. Memory and authoritative state
+
+Explain the difference between:
+
+- Authoritative workflow state.
+- Model context.
+- Simulated memory or retained information.
+- Event/audit history.
+
+Do not present a mock memory component as a real persistent memory service.
+
+### E. Harness and permissions
+
+Explain which component controls execution.
+
+Show:
+
+- Approval enforcement.
+- Tool authorization.
+- Allowed transitions.
+- Retry limits.
+- Execution boundaries.
+
+### F. MCP and tool adapters
+
+Show where a tool adapter would sit between the workflow and an external service.
+
+Explain where MCP could fit in a real implementation.
+
+A real MCP server is not required.
+
+Label the component as simulated if it is not actually implemented.
+
+---
+
+# 10. VISUAL DESIGN DIRECTION
+
+This is a major priority.
+
+The current workflow is too technical and difficult to follow.
+
+I want a clean, premium, minimalist B2B SaaS interface.
+
+Think of a modern professional operations platform rather than a complex developer console.
+
+### Design characteristics
+
+- Minimalist.
+- Clean.
+- Premium.
+- Professional.
+- Calm.
+- Consistent.
+- Easy to scan.
+- Business-oriented.
+- Strong typography.
+- Clear hierarchy.
+- Generous whitespace.
+- Subtle borders.
+- Consistent spacing.
+- Restrained accent colours.
+- Clear status labels.
+- Simple icons.
+
+### Colour system
+
+Use colours with consistent meaning:
+
+- Green: completed successfully.
+- Blue: currently active.
+- Amber: waiting or uncertain.
+- Red: blocked or failed.
+- Grey: inactive or not yet reached.
+
+Always include text labels alongside status colours.
+
+### Avoid
+
+- Excessive gradients.
+- Heavy shadows.
+- Oversized cards.
+- Unnecessary decorative illustrations.
+- Too many competing panels.
+- Tiny labels.
+- Dense technical flowcharts.
+- Excessive animations.
+- Long paragraphs inside nodes.
+- Unnecessary dashboard statistics.
+- Excessive colour usage.
+- A generic AI-generated dashboard aesthetic.
+
+### Layout principles
+
+The primary business journey should receive the most visual attention.
+
+Technical inspection should be accessible but secondary.
+
+Use consistent spacing and component sizes.
+
+Ensure the entire interface works on desktop and smaller screens.
+
+Do not let the interface become cluttered just because there is a lot of underlying technical information.
+
+**The design should communicate simplicity even though the system underneath is complex.**
+
+---
+
+# 11. FUNCTIONAL IMPLEMENTATION REQUIREMENTS
+
+This must be a real interactive demonstrator.
+
+Do not simply redraw the existing HTML.
+
+Do not produce a static mockup.
+
+Do not make the buttons decorative.
+
+The following must work:
+
+- Scenario selection.
+- Workflow execution.
+- Step-by-step progression.
+- Active stage highlighting.
+- Stage selection and inspection.
+- Approval interaction.
+- Blocked action explanation.
+- Notification execution.
+- Timeout simulation.
+- Retry/reconciliation.
+- Event timeline updates.
+- State inspector updates.
+- Reset.
+- Consistent scenario switching.
+
+The graph, state panel and event timeline must reflect the same underlying execution state.
+
+Avoid separate hardcoded representations of the same information.
+
+The interface must not display a successful state when the actual workflow is blocked or uncertain.
+
+---
+
+# 12. PRESERVE THE ORIGINAL IMPLEMENTATION
+
+Do not unnecessarily rewrite the working Stage 1 logic.
+
+Inspect the current technology stack and choose the safest implementation approach.
+
+Prefer preserving the existing HTML/JavaScript architecture if it is suitable.
+
+If the current application needs restructuring, explain why and preserve the existing behaviour.
+
+If the original workflow can be reused through a shared module, prefer that over duplicating business logic.
+
+However, do not introduce unnecessary infrastructure just to achieve code reuse.
+
+Keep the application locally runnable.
+
+No external API credentials, production databases, real notification services or paid services are required.
+
+Clearly identify mock services and simulated AI components.
+
+---
+
+# 13. VERIFICATION BEFORE COMPLETION
+
+After implementation, verify the actual behaviour.
+
+At minimum:
+
+1. The application loads successfully.
+2. The primary workflow is understandable.
+3. Scenario selection works.
+4. Step execution works.
+5. Missing measurement validation works.
+6. Incorrect units are detected.
+7. Invalid values are detected.
+8. Unapproved SEND is blocked.
+9. Incorrect action approval is rejected.
+10. Correct approval permits sending.
+11. Successful delivery returns a receipt.
+12. Completed notification replay creates no duplicate delivery.
+13. Timeout produces an uncertain outcome.
+14. Retry uses the same idempotency key.
+15. Actual delivery count remains one after successful recovery.
+16. Always-timeout scenario stops after two attempts.
+17. Reconciliation is correctly displayed.
+18. Protocol revision change invalidates old approval.
+19. State inspector reflects actual state.
+20. Event timeline reflects actual events.
+21. Reset works correctly.
+22. The original Stage 1 checks still pass.
+
+Do not claim tests passed unless they were actually executed.
+
+If something is not verifiable in the Google AI Studio environment, explicitly tell me what needs to be checked locally.
+
+---
+
+# 14. HOW TO EXECUTE THE WORK
+
+Follow this sequence.
+
+### Phase 1 – Complete understanding
+
+Read the uploaded PDFs, inspect the GitHub source, inspect the HTML and understand the complete system.
+
+Identify the existing architecture and its limitations.
+
+### Phase 2 – UX restructuring
+
+Design a simplified information architecture.
+
+Decide how the primary business workflow, active stage details, execution controls, state inspector and event timeline should work together.
+
+Explain the proposed structure briefly.
+
+### Phase 3 – Functional redesign
+
+Implement the redesigned application using the existing project as the foundation.
+
+Preserve required functionality.
+
+Do not stop at wireframes or design suggestions.
+
+### Phase 4 – Verification
+
+Run the available tests and exercise the required scenarios.
+
+Fix functional issues and visual inconsistencies.
+
+### Phase 5 – Final handover
+
+Provide:
+
+- Complete updated source files.
+- Updated HTML, if it remains the primary application.
+- Supporting files.
+- Clear local run instructions.
+- Summary of preserved functionality.
+- Summary of new functionality.
+- Implemented versus simulated component list.
+- Known limitations.
+- Test results.
+
+If you cannot directly modify or export the uploaded files, provide the complete replacement files rather than isolated snippets.
+
+Do not silently omit files.
+
+---
+
+# 15. IMPORTANT INSTRUCTIONS
+
+- Do not rush into coding without understanding the source material.
+- Do not rebuild the system from scratch without justification.
+- Do not change the original business rules for visual convenience.
+- Do not remove existing working scenarios.
+- Do not invent features or integrations.
+- Do not make the workflow more complicated than necessary.
+- Do not show all internal technical operations on the primary diagram.
+- Do not confuse clarification approval with profile approval.
+- Do not confuse notification delivery with measurement acceptance.
+- Do not confuse provider-side knowledge with application-side knowledge.
+- Do not mark a profile as production-approved when it is only ready for designer review.
+- Do not represent simulated AI as a real model integration.
+- Do not claim an external MCP service exists when it is only conceptual.
+- Do not create disconnected UI components with fake state.
+- Do not claim implementation or testing is complete without verification.
+
+Use your design judgement to make sensible decisions.
+
+I do not want to micromanage individual margins, colours, component placement or every small implementation choice.
+
+I want you to understand the requirements and make professional decisions.
+
+---
+
+# FINAL EXPECTATION
+
+The final application should make Karthik understand the MOSU measurement workflow within the first 30–60 seconds of opening it.
+
+He should immediately understand:
+
+- What the business process is.
+- How a measurement profile moves through the system.
+- Why validation happens.
+- Why a designer must approve clarification messages.
+- How notifications are delivered.
+- What happens when the provider times out.
+- How the system prevents duplicate delivery.
+- What happens when approval becomes stale.
+- Which parts are deterministic and which are AI-assisted.
+- How the workflow can be inspected and understood.
+
+At the same time, he should be able to explore the technical details when he wants to.
+
+**The guiding principle is: SIMPLE ON THE SURFACE, RIGOROUS UNDER THE HOOD.**
+
+I want a demonstrator that feels like a thoughtfully designed software product, not a collection of assessment requirements placed into boxes.
+
+Understand the existing system, preserve its intelligence and reliability, simplify its presentation, and deliver a polished, functional and technically accurate result.
