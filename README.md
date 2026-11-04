@@ -1,62 +1,71 @@
-# MOSU: reliable clarification workflow
+# MOSU — Visual Systems Demonstrator
 
-## Purpose
+A visual workflow demonstrating remote measurement validation, human approval, and safe notification delivery for custom fashion tailoring.
 
-Complete a small AI-assisted workflow with explicit state, human approval and honest failure handling. The supplied drafting tool stands in for an LLM. This is a synthetic exercise, not MOSU production work.
+## 1. Overview
 
-AI assistants, documentation and ordinary development tools are allowed. We want to see what you can explain, verify and adapt. You do not need a paid model account, network access, deployment, a database or a real MCP server.
+The project models a six-stage workflow:
 
-## Time and terms
+1. Protocol Setup
+2. Profile Intake
+3. Measurement Validation & AI Draft
+4. Designer Approval
+5. Notification Delivery
+6. Maker Handoff
 
-- Initial work: stop after **two hours** of active work. Submit partial work and describe what is incomplete.
-- A later, separately supplied change: up to **30 additional minutes**. Do not implement it speculatively now.
-- Agree payment, schedule, submission deadline and any accessibility needs with MOSU **before starting**. This kit does not itself establish payment or an employment offer.
-- Setup trouble should be reported separately. Tell MOSU promptly rather than spending the timebox fighting the environment.
+The main focus is ensuring that measurement issues are identified, clarification messages are approved by a human before sending, and uncertain notification outcomes can be recovered safely.
 
-## Run it
+## 2. Scenarios Demonstrated
 
-Use an installed supported Node.js release with ES modules and `structuredClone` (Node 20+ is sufficient for this kit). No `npm install` or other dependencies are required.
+**Scenario A — Normal Workflow**
+- Detects a missing waist measurement and an incorrect hip unit.
+- Generates a clarification message.
+- Blocks sending until the designer approves the exact message.
+- Demonstrates successful notification and duplicate-send prevention.
+- Shows a corrected profile passing validation and being accepted by the designer.
 
-From this extracted folder:
+**Scenario B — Delivery Timeout & Recovery**
+- Simulates a notification being delivered while its confirmation is lost.
+- Records the delivery status as `unknown`.
+- Retries using the same idempotency key.
+- Demonstrates two notification requests resulting in one actual delivery.
 
-```sh
-node smoke.mjs
-node run.mjs
-```
+## 3. Implementation Scope
 
-The smoke check should report `SETUP PASS` even for the intentionally broken starter. The behavior checks initially fail: that is expected.
+**Implemented**
+- Deterministic measurement and unit validation.
+- Workflow state transitions and version-aware approvals.
+- Exact-action approval checks before sending.
+- Idempotency handling and bounded retries (maximum two attempts).
+- Delivery status tracking and request-versus-delivery counters.
+- Interactive six-stage workflow visualization and event log.
 
-Edit **workflow.mjs**. Keep the `handle(state, event, tools)` export and the public contract. Do not edit the checker, mocks or helpers to obtain passes.
+**Simulated or Conceptual**
+- AI clarification drafting uses a deterministic template, not a live AI model.
+- Email/SMS delivery uses an in-memory mock provider, not a real notification service.
+- Maker handoff is represented as a workflow outcome, not a live production-system integration.
 
-To save your run report:
+## 4. Key Design Decision & Trade-off
 
-```sh
-node run.mjs --json > results.json
-```
+The workflow uses a synchronous, deterministic state reducer with injected tool adapters instead of a distributed event-processing system.
 
-Exit code 0 means all behavior checks passed, 1 means some failed, and 2 means setup/import failed. The console report is also a small state viewer: it shows each event, version, issues, approval, delivery status, attempts, actual service calls and actual deliveries.
+This keeps the demonstrator simple, predictable, and easy to test. The trade-off is that it does not provide the persistence or asynchronous coordination expected in a production environment.
 
-## What to read
+## 5. Limitations
 
-1. **CONTRACT.md**: the rules, event/state/tool shapes and expected behavior.
-2. **GLOSSARY.md**: a short explanation of the systems concepts.
-3. **workflow.mjs**: the broken starter to repair.
-4. **cases.mjs** and **mock-tools.mjs**: the published checks and services. You may read them.
+- Workflow state is held in memory and resets when the page is refreshed.
+- Notifications are simulated; no real email or SMS is sent.
+- AI drafting is template-based; no live LLM integration is connected.
+- Maker handoff is conceptual; no external workshop system is connected.
 
-Five core cases cover new versions, untrusted reference text, wrong approval, approved replay, and a delivery whose response is lost. An additional published limit check covers two uncertain attempts and then stopping. Evaluators may change synthetic IDs, versions, numeric values and which required field is missing or has the wrong unit. The rules will remain the same; no undisclosed framework knowledge is required.
+## 6. AI Tool Used
 
-The later change brief will add one explicit requirement and acceptance criteria. It is not graded against the initial submission before you receive it.
+**Google Gemini only.**
 
-## Submit
+Used as a development assistant for UI scaffolding, layout refinement, and implementation support. I reviewed and tested the resulting workflow behaviour myself.
 
-- Your **workflow.mjs**, plus any explanation of changes. Prefer editing only this file; disclose any additional standard-library-only code you need.
-- **results.json** from the provided runner, including failures if any.
-- A decision note using **DECISION_NOTE.md**, no more than **400 words**.
+## 7. Time Spent
 
-Be ready to show the unknown-delivery/retry case during a **15-minute walkthrough**. No prepared recording is required; screenshots or a recording are optional supporting material.
-
-In the walkthrough, explain what is known after the timeout, what remains unknown and why the retry is safe. Identify your contribution and your AI-assisted work honestly. Full AI chat histories are not requested.
-
-## Limits
-
-Passing the checks does not prove authorship, production security, deployment experience or hiring suitability. It establishes a narrow set of observable behaviors. MOSU will discuss your decisions and ask you to apply a small change. Partial completion and a clear explanation are useful evidence; do not disguise incomplete behavior.
+- Project implementation, testing, and documentation: approximately **105–110 minutes**.
+- Video recording: approximately **15–20 minutes**.
+- Total including recording: approximately **120–130 minutes**.
