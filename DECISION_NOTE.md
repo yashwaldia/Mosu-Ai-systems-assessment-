@@ -36,6 +36,16 @@ Verification: Scenario 5 now records two attempts, one actual delivery, and the 
 
 All six published checks pass.
 
+One item intentionally left for the follow-up exercise is including protocol.revision in the pending action identity.
+
+For a production system, I would also add:
+
+Concurrency protection to prevent simultaneous events from changing the same workflow state.
+
+Better error classification so permanent errors are not retried like temporary timeouts.
+
+A reconciliation process to check the messaging provider and resolve deliveries whose outcomes remain unknown.
+
 ## AI assistance and verification
 
 I used Gemini to cross-check the contract against the workflow implementation and review validation edge cases.
