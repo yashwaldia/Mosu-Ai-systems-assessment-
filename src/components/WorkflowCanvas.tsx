@@ -20,7 +20,7 @@ export interface WorkflowNodeDef {
 export const WORKFLOW_NODES: WorkflowNodeDef[] = [
   {
     id: 'protocol',
-    stepNumber: 'Step 1',
+    stepNumber: 'Stage 1',
     title: 'Protocol Setup',
     role: 'Designer',
     kindLabel: 'Setup',
@@ -36,7 +36,7 @@ export const WORKFLOW_NODES: WorkflowNodeDef[] = [
   },
   {
     id: 'intake',
-    stepNumber: 'Step 2',
+    stepNumber: 'Stage 2',
     title: 'Profile Intake',
     role: 'Measurement Pro',
     kindLabel: 'Intake',
@@ -52,7 +52,7 @@ export const WORKFLOW_NODES: WorkflowNodeDef[] = [
   },
   {
     id: 'validation',
-    stepNumber: 'Step 3',
+    stepNumber: 'Stage 3',
     title: 'Validation Check',
     role: 'System & AI',
     kindLabel: 'Validation',
@@ -68,7 +68,7 @@ export const WORKFLOW_NODES: WorkflowNodeDef[] = [
   },
   {
     id: 'designer_gate',
-    stepNumber: 'Step 4',
+    stepNumber: 'Stage 4',
     title: 'Designer Approval',
     role: 'Designer',
     kindLabel: 'Gate',
@@ -84,7 +84,7 @@ export const WORKFLOW_NODES: WorkflowNodeDef[] = [
   },
   {
     id: 'notification',
-    stepNumber: 'Step 5',
+    stepNumber: 'Stage 5',
     title: 'Notification Delivery',
     role: 'Delivery Tool',
     kindLabel: 'Tool',
@@ -100,7 +100,7 @@ export const WORKFLOW_NODES: WorkflowNodeDef[] = [
   },
   {
     id: 'maker_handoff',
-    stepNumber: 'Step 6',
+    stepNumber: 'Stage 6',
     title: 'Maker Handoff',
     role: 'Garment Maker',
     kindLabel: 'Production',
@@ -351,6 +351,12 @@ export function WorkflowCanvas({
         className={`relative flex-1 w-full h-full overflow-hidden flex items-center justify-center ${
           isPanning ? 'cursor-grabbing' : 'cursor-grab'
         }`}
+        style={{
+          backgroundColor: '#f8fafc',
+          backgroundImage: 'radial-gradient(#cbd5e1 1.25px, transparent 1.25px)',
+          backgroundSize: `${22 * scale}px ${22 * scale}px`,
+          backgroundPosition: `${pan.x}px ${pan.y}px`,
+        }}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
@@ -367,13 +373,7 @@ export function WorkflowCanvas({
           className="relative transition-transform duration-75 pointer-events-auto shrink-0"
         >
           {/* SVG Connector Lines Layer */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none">
-            <defs>
-              <pattern id="dot-grid" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
-                <circle cx="2" cy="2" r="1.2" fill="#cbd5e1" />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#dot-grid)" />
+          <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
 
             {/* Wire 1: Step 1 (Protocol) -> Step 3 (Validation Check) */}
             {drawWire(

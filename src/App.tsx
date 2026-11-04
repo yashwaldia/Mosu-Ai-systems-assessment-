@@ -26,6 +26,7 @@ interface StepContext {
     event: WorkflowEvent,
     traces?: Array<Omit<TraceEntry, 'id' | 'seq' | 'time'>>
   ) => Promise<void>;
+  setState: (next: WorkflowState) => void;
   addTrace: (entry: Omit<TraceEntry, 'id' | 'seq' | 'time'>) => void;
 }
 
@@ -53,8 +54,8 @@ const SCENARIOS: Record<string, ScenarioConfig> = {
           'Designer sets the measurement protocol. Rule: Approval from any previous order (like v3) never automatically transfers to a new submission (v4).',
         nodeId: 'protocol',
         run: async (ctx) => {
-          const old = initialState();
-          old.currentProfile = {
+          const seeded = initialState();
+          seeded.currentProfile = {
             id: 'profile-017',
             version: 3,
             protocolId: 'standard-fit',
@@ -65,13 +66,11 @@ const SCENARIOS: Record<string, ScenarioConfig> = {
               hip: { value: 96, unit: 'cm' },
             },
           };
-          old.reviewStatus = 'approved';
-          old.approvedActionId = 'old-action-v3';
-          old.outcome = 'v3_historical';
-          ctx.state.currentProfile = old.currentProfile;
-          ctx.state.reviewStatus = old.reviewStatus;
-          ctx.state.approvedActionId = old.approvedActionId;
-          ctx.state.outcome = old.outcome;
+          seeded.currentProtocol = await ctx.harness.tools.readProtocol('standard-fit');
+          seeded.reviewStatus = 'approved';
+          seeded.approvedActionId = 'old-action-v3';
+          seeded.outcome = 'v3_historical';
+          ctx.setState(seeded);
           ctx.addTrace({
             actor: 'Designer',
             action: 'PROTOCOL_SETUP',
@@ -87,16 +86,18 @@ const SCENARIOS: Record<string, ScenarioConfig> = {
           'Measurement professional submits customer-017 measurements (chest: 92cm, waist: missing, hip: 38in). Submitted profile is safely ingested.',
         nodeId: 'intake',
         run: async (ctx) => {
-          ctx.state.currentProfile = structuredClone(ctx.harness.profileV4);
-          ctx.state.currentProtocol = await ctx.harness.tools.readProtocol(
+          const intake = initialState();
+          intake.currentProfile = structuredClone(ctx.harness.profileV4);
+          intake.currentProtocol = await ctx.harness.tools.readProtocol(
             ctx.harness.profileV4.protocolId
           );
-          ctx.state.reviewStatus = 'unreviewed';
-          ctx.state.issues = [];
-          ctx.state.pendingAction = null;
-          ctx.state.approvedActionId = null;
-          ctx.state.delivery = { status: 'not_sent', attempts: 0, receiptId: null };
-          ctx.state.outcome = 'submitted_v4';
+          intake.reviewStatus = 'unreviewed';
+          intake.issues = [];
+          intake.pendingAction = null;
+          intake.approvedActionId = null;
+          intake.delivery = { status: 'not_sent', attempts: 0, receiptId: null };
+          intake.outcome = 'submitted_v4';
+          ctx.setState(intake);
           ctx.addTrace({
             actor: 'Measurement Pro',
             action: 'SUBMIT_PROFILE',
@@ -237,89 +238,76 @@ const SCENARIOS: Record<string, ScenarioConfig> = {
     steps: [
       {
         title: 'Step 1: Protocol Setup',
-        headline: 'Protocol standard-fit (r1) requires chest, waist, and hip in cm.',
+        headline: 'Designer configures standard-fit protocol (r1) with strict centimetre units.',
         plainSummary:
-          'Designer sets garment guidelines (chest, waist, hip in cm). Version isolation active.',
+          'Designer establishes required measurements in cm. Configured provider to simulate return-path network drops for recovery testing.',
         nodeId: 'protocol',
         run: async (ctx) => {
-          const old = initialState();
-          old.currentProfile = {
-            id: 'profile-017',
-            version: 3,
-            protocolId: 'standard-fit',
-            recipient: 'customer-017@example.test',
-            measurements: {
-              chest: { value: 91, unit: 'cm' },
-              waist: { value: 75, unit: 'cm' },
-              hip: { value: 96, unit: 'cm' },
-            },
-          };
-          old.reviewStatus = 'approved';
-          old.approvedActionId = 'old-action-v3';
-          old.outcome = 'v3_historical';
-          ctx.state.currentProfile = old.currentProfile;
-          ctx.state.reviewStatus = old.reviewStatus;
-          ctx.state.approvedActionId = old.approvedActionId;
-          ctx.state.outcome = old.outcome;
+          const seeded = initialState();
+          seeded.currentProfile = structuredClone(ctx.harness.profileV4);
+          seeded.currentProtocol = await ctx.harness.tools.readProtocol('standard-fit');
+          seeded.reviewStatus = 'unreviewed';
+          seeded.issues = [];
+          seeded.pendingAction = null;
+          seeded.approvedActionId = null;
+          seeded.delivery = { status: 'not_sent', attempts: 0, receiptId: null };
+          seeded.outcome = 'protocol_ready';
+          ctx.setState(seeded);
           ctx.addTrace({
             actor: 'Designer',
             action: 'PROTOCOL_SETUP',
-            detail: 'Loaded protocol standard-fit (revision r1). Prior historical v3 approval is safely quarantined.',
+            detail: 'Loaded protocol standard-fit (revision r1). Configured provider gateway to simulate return-path timeout.',
             status: 'OK',
           });
         },
       },
       {
         title: 'Step 2: Profile Intake',
-        headline: 'Measurement Pro captures and submits customer Profile v4.',
+        headline: 'Measurement Pro captures customer-017 Profile v4 (with flaws).',
         plainSummary:
-          'Measurement professional submits customer-017 v4 measurements for intake.',
+          'Measurement professional submits customer-017 measurements (chest: 92cm, waist: missing, hip: 38in). Submitted profile is safely ingested.',
         nodeId: 'intake',
         run: async (ctx) => {
-          ctx.state.currentProfile = structuredClone(ctx.harness.profileV4);
-          ctx.state.currentProtocol = await ctx.harness.tools.readProtocol(
+          const intake = initialState();
+          intake.currentProfile = structuredClone(ctx.harness.profileV4);
+          intake.currentProtocol = await ctx.harness.tools.readProtocol(
             ctx.harness.profileV4.protocolId
           );
-          ctx.state.reviewStatus = 'unreviewed';
-          ctx.state.issues = [];
-          ctx.state.pendingAction = null;
-          ctx.state.approvedActionId = null;
-          ctx.state.delivery = { status: 'not_sent', attempts: 0, receiptId: null };
-          ctx.state.outcome = 'submitted_v4';
+          intake.reviewStatus = 'unreviewed';
+          intake.issues = [];
+          intake.pendingAction = null;
+          intake.approvedActionId = null;
+          intake.delivery = { status: 'not_sent', attempts: 0, receiptId: null };
+          intake.outcome = 'submitted_v4';
+          ctx.setState(intake);
           ctx.addTrace({
             actor: 'Measurement Pro',
             action: 'SUBMIT_PROFILE',
-            detail: 'Submitted profile-017 v4 into intake queue.',
+            detail: 'Submitted customer-017 Profile v4 (chest: 92cm, waist: missing, hip: 38in) into intake queue.',
             status: 'OK',
           });
         },
       },
       {
         title: 'Step 3: Validation Check & AI Draft',
-        headline: 'Validator flags missing waist & inches unit. AI drafts clarification.',
+        headline: 'Validator flags missing waist & inches unit. AI drafts polite clarification.',
         plainSummary:
-          'System checks measurements against protocol. Missing waist and hip in inches flagged. AI drafts clarification proposal.',
+          'Automated validator checks measurements against protocol. Flags missing:waist and unit:hip:in. AI assistant drafts polite clarification wording.',
         nodeId: 'validation',
         run: async (ctx) => {
           await ctx.dispatch(
             { type: 'LOAD_PROFILE', profile: ctx.harness.profileV4 },
             [
               {
-                actor: 'Measurement Pro',
-                action: 'SUBMIT_PROFILE',
-                detail: 'Submitted profile-017 v4. Issues detected: missing:waist, unit:hip:in.',
-                status: 'OK',
-              },
-              {
                 actor: 'Validator',
                 action: 'CHECK_MEASUREMENTS',
-                detail: 'Issues identified: missing:waist, unit:hip:in. Prior approvals cleared.',
+                detail: 'Validation against standard-fit (r1) flagged: missing:waist, unit:hip:in. Prior approvals cleared.',
                 status: 'OK',
               },
               {
                 actor: 'AI Assistant',
                 action: 'DRAFT_CLARIFICATION',
-                detail: 'Drafted clarification request. Action ID generated.',
+                detail: 'Drafted: "Please clarify profile-017 version 4: missing waist, unit hip in cm." Action ID generated.',
                 status: 'OK',
               },
             ]
@@ -328,11 +316,22 @@ const SCENARIOS: Record<string, ScenarioConfig> = {
       },
       {
         title: 'Step 4: Designer Approval Gate',
-        headline: 'Designer reviews issues and authorizes the exact clarification action ID.',
+        headline: 'Unapproved send blocked; Designer explicitly authorizes clarification action ID.',
         plainSummary:
-          'Human designer explicitly authorizes sending clarification to the customer.',
+          'Human-in-the-loop: Unapproved send is strictly blocked (0 calls). Designer signs off on exact action ID, unlocking customer notification.',
         nodeId: 'designer_gate',
         run: async (ctx) => {
+          // 1. Attempt unapproved send to demonstrate the gate works
+          await ctx.dispatch({ type: 'SEND' }, [
+            {
+              actor: 'Designer Gate',
+              action: 'SEND_BLOCKED',
+              detail: 'Action is not yet approved by Designer. Delivery halted; zero messages dispatched.',
+              status: 'BLOCKED',
+            },
+          ]);
+
+          // 2. Designer approves exact action ID
           const actionId = ctx.state.pendingAction?.id || '';
           await ctx.dispatch({ type: 'APPROVE_ACTION', actionId }, [
             {
@@ -345,13 +344,13 @@ const SCENARIOS: Record<string, ScenarioConfig> = {
         },
       },
       {
-        title: 'Step 5: Notification Delivery & Timeout Recovery',
-        headline: 'Attempt #1 times out (unknown status); Attempt #2 retries with same key & recovers receipt!',
+        title: 'Step 5: Notification Delivery, Timeout & Safe Recovery',
+        headline: 'Attempt #1 times out (unknown) → Snapshot continuity verified → Attempt #2 safely deduplicates!',
         plainSummary:
-          'Dual counters: Provider delivered message internally, but network dropped on return path (status="unknown"). Reload preserves unknown state. Retry reuses same key and recovers receipt-1 (Requests=2, Deliveries=1)!',
+          'Provider commits delivery #1 but network drops (honest unknown). Snapshot reload preserves attempts (1). Safe retry reuses key: deduplicated cache hit returns receipt-1! (Requests = 2, Deliveries = 1).',
         nodeId: 'notification',
         run: async (ctx) => {
-          // Attempt #1: Timeout
+          // 1. Dispatch attempt #1 (times out on return path)
           await ctx.dispatch({ type: 'SEND' }, [
             {
               actor: 'Delivery Service',
@@ -368,25 +367,25 @@ const SCENARIOS: Record<string, ScenarioConfig> = {
             {
               actor: 'Workflow Engine',
               action: 'HONEST_STATUS_UNKNOWN',
-              detail: 'Recorded delivery status="unknown", attempts=1. Preserves key for safe retry.',
+              detail: 'Recorded delivery status="unknown", attempts=1, receiptId=null. Preserves key for safe retry.',
               status: 'TIMEOUT',
             },
           ]);
 
-          // Snapshot continuity: Reload identical profile v4 preserves unknown status
+          // 2. Reload snapshot to verify state continuity across restarts
           await ctx.dispatch(
             { type: 'LOAD_PROFILE', profile: ctx.harness.profileV4 },
             [
               {
                 actor: 'Workflow Engine',
                 action: 'SNAPSHOT_CONTINUITY',
-                detail: 'Same action ID detected: preserved status="unknown", attempts=1, and approval.',
+                detail: 'Snapshot reloaded from disk: preserved status="unknown", attempts=1, and approvedActionId across restarts.',
                 status: 'OK',
               },
             ]
           );
 
-          // Attempt #2: Safe retry reuses key, provider deduplicates and returns receipt-1
+          // 3. Dispatch safe retry attempt #2 with the exact same idempotency key
           await ctx.dispatch({ type: 'SEND' }, [
             {
               actor: 'Retry Engine',
@@ -413,7 +412,7 @@ const SCENARIOS: Record<string, ScenarioConfig> = {
         title: 'Step 6: Maker Handoff & Production',
         headline: 'Customer submits corrected v5 (all cm). 0 issues; handed off for garment cutting!',
         plainSummary:
-          'Customer provides clean measurements in cm (chest 92cm, waist 76cm, hip 96.5cm). 0 issues found; handed off to the workshop queue for production cutting.',
+          'Customer provides chest 92cm, waist 76cm, hip 96.5cm. All checks pass; designer accepts verified profile for production cutting.',
         nodeId: 'maker_handoff',
         run: async (ctx) => {
           await ctx.dispatch(
@@ -428,7 +427,7 @@ const SCENARIOS: Record<string, ScenarioConfig> = {
               {
                 actor: 'Validator',
                 action: 'ALL_CHECKS_PASSED',
-                detail: 'All required fields present in cm. Status set to ready_for_review.',
+                detail: 'All required fields present in cm. Status set to ready_for_review for production cutting.',
                 status: 'OK',
               },
               {
@@ -449,6 +448,7 @@ export default function App() {
   const [currentScenarioKey, setCurrentScenarioKey] = useState<string>('scenario_a');
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [selectedNodeId, setSelectedNodeId] = useState<string>('protocol');
+  const stateRef = useRef<WorkflowState>(initialState());
   const [state, setState] = useState<WorkflowState>(initialState());
   const [traces, setTraces] = useState<TraceEntry[]>([]);
   const [isAutoPlaying, setIsAutoPlaying] = useState<boolean>(false);
@@ -476,23 +476,29 @@ export default function App() {
     ]);
   }, []);
 
+  const setWorkflowState = useCallback((nextState: WorkflowState) => {
+    stateRef.current = JSON.parse(JSON.stringify(nextState));
+    setState(JSON.parse(JSON.stringify(nextState)));
+  }, []);
+
   const dispatchEvent = useCallback(
     async (
       event: WorkflowEvent,
       additionalTraces: Array<Omit<TraceEntry, 'id' | 'seq' | 'time'>> = []
     ) => {
       const nextState = await handleWorkflow(
-        state,
+        stateRef.current,
         event,
         harnessRef.current.tools,
         { bindProtocolRevision: scenario.bindProtocolRevision }
       );
+      stateRef.current = JSON.parse(JSON.stringify(nextState));
       setState(JSON.parse(JSON.stringify(nextState)));
       for (const t of additionalTraces) {
         addTrace(t);
       }
     },
-    [state, scenario.bindProtocolRevision, addTrace]
+    [scenario.bindProtocolRevision, addTrace]
   );
 
   const resetScenario = useCallback(
@@ -509,6 +515,7 @@ export default function App() {
       setCurrentScenarioKey(key);
       setCurrentStepIndex(0);
       setSelectedNodeId('protocol');
+      stateRef.current = initialState();
       setState(initialState());
       setTraces([
         {
@@ -551,8 +558,11 @@ export default function App() {
 
     const ctx: StepContext = {
       harness: harnessRef.current,
-      state,
+      get state() {
+        return stateRef.current;
+      },
       dispatch: dispatchEvent,
+      setState: setWorkflowState,
       addTrace,
     };
 
@@ -565,7 +575,7 @@ export default function App() {
         setIsAutoPlaying(false);
       }
     }
-  }, [currentStepIndex, scenario, state, dispatchEvent, addTrace]);
+  }, [currentStepIndex, scenario, dispatchEvent, setWorkflowState, addTrace]);
 
   const handleStepBackward = useCallback(async () => {
     if (currentStepIndex <= 0) return;
@@ -577,13 +587,17 @@ export default function App() {
       setSelectedNodeId(def.steps[i].nodeId);
       const ctx: StepContext = {
         harness: harnessRef.current,
-        state,
+        get state() {
+          return stateRef.current;
+        },
         dispatch: dispatchEvent,
+        setState: setWorkflowState,
         addTrace,
       };
       await def.steps[i].run(ctx);
     }
-  }, [currentStepIndex, currentScenarioKey, resetScenario, state, dispatchEvent, addTrace]);
+  }, [currentStepIndex, currentScenarioKey, resetScenario, dispatchEvent, setWorkflowState, addTrace]);
+
 
   const toggleAutoPlay = useCallback(() => {
     if (isAutoPlaying) {
